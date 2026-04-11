@@ -17,6 +17,9 @@ import net.minecraft.item.ItemArmor;
 import net.minecraft.item.ItemStack;
 import org.lwjgl.opengl.GL11;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Actor's armor layer
  *
@@ -39,6 +42,8 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
         this.modelLeggings = new ModelBiped(0.5F);
     }
 
+    private static final String DYNAMX_ARMOR_CLASS = "fr.dynamx.client.renders.model.ModelObjArmor";
+
     @Override
     public void doRenderLayer(EntityLivingBase entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch, float scale)
     {
@@ -47,6 +52,11 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
         if (base instanceof ModelCustom)
         {
             ModelCustom model = (ModelCustom) base;
+
+            /* Track which equipment slots have already been rendered via the DynamX
+             * scene-graph path so we don't render the same slot multiple times
+             * (multiple limbs can map to the same equipment slot). */
+            Set<EntityEquipmentSlot> renderedDynamXSlots = null;
 
             for (ModelCustomRenderer limb : model.armor)
             {
@@ -58,12 +68,176 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
 
                     if (item.getEquipmentSlot() == limb.limb.slot.slot)
                     {
-                        this.renderArmorSlot(entity, stack, item, limb, limb.limb.slot.slot, partialTicks, scale);
+                        /* Check if Forge returns a custom armor model (e.g. DynamX ModelObjArmor) */
+                        ModelBiped defaultModel = this.getModelFromSlot(limb.limb.slot.slot);
+                        ModelBiped armorModel = this.getArmorModelHook(entity, stack, limb.limb.slot.slot, defaultModel);
+
+                        if (armorModel != null && armorModel.getClass().getName().equals(DYNAMX_ARMOR_CLASS))
+                        {
+                            /* DynamX OBJ armor: render via the scene-graph path (model.render)
+                             * which manages its own textures. Only render once per slot. */
+                            if (renderedDynamXSlots == null)
+                            {
+                                renderedDynamXSlots = new HashSet<EntityEquipmentSlot>();
+                            }
+
+                            if (!renderedDynamXSlots.contains(limb.limb.slot.slot))
+                            {
+                                renderedDynamXSlots.add(limb.limb.slot.slot);
+                                this.renderDynamXArmorSlot(entity, armorModel, limb.limb.slot.slot, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale);
+                            }
+                        }
+                        else
+                        {
+                            /* Standard (vanilla) armor rendering */
+                            this.renderArmorSlot(entity, stack, item, limb, limb.limb.slot.slot, partialTicks, scale);
+                        }
                     }
                 }
             }
         }
     }
+
+    /**
+     * Render a DynamX OBJ armor model via its scene-graph path.
+     * DynamX manages its own texture binding internally, so we must NOT
+     * call bindTexture/getArmorResource here — that would overwrite the
+     * correct OBJ texture with a non-existent vanilla path (pink texture).
+     */
+    private void renderDynamXArmorSlot(EntityLivingBase entity, ModelBiped armorModel, EntityEquipmentSlot slot, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, float scale)
+    {
+        GlStateManager.pushMatrix();
+
+        ModelBase mainModel = this.renderer.getMainModel();
+
+        if (mainModel instanceof ModelCustom)
+        {
+            ModelCustom customModel = (ModelCustom) mainModel;
+
+            /* Apply the root (anchor) limb transform. Poses like lying/sleeping
+             * rotate the anchor to flip the entire model — DynamX doesn't know
+             * about Blockbuster's parent chain, so we apply it as a GL transform. */
+            this.applyParentTransforms(customModel, scale);
+
+            /* Sync rotation angles from custom limbs to standard biped fields
+             * so DynamX's setModelAttributes() picks up arm/leg/head animation. */
+            this.syncCustomModelToBiped(customModel);
+        }
+
+        armorModel.setModelAttributes(mainModel);
+
+        /* Let ModelObjArmor.render() go through the DynamX scene graph which
+         * calls ArmorNode → renderPart → ArmorRenderer.render → renderGroup
+         * with the correct OBJ textures. */
+        armorModel.render(entity, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale);
+
+        GlStateManager.popMatrix();
+    }
+
+    /**
+     * Apply GL transforms from root/anchor and body limbs so that DynamX armor
+     * follows Blockbuster poses (lying, sleeping, sitting, etc.).
+     * These parent limbs have no armor slot but their rotation affects all children.
+     */
+    private void applyParentTransforms(ModelCustom model, float scale)
+    {
+        float deg = 180F / (float) Math.PI;
+
+        for (ModelCustomRenderer limb : model.limbs)
+        {
+            /* Find the root anchor (no parent) */
+            if (limb.limb.parent.isEmpty())
+            {
+                /* Apply anchor's position offset relative to default standing.
+                 * Default standing anchor Y = -16 + 24 = 8. If a pose changes
+                 * the anchor Y, we need to translate by the difference. */
+                float defaultY = 8.0F;
+                float dy = (limb.rotationPointY - defaultY) * scale;
+                if (dy != 0.0F)
+                {
+                    GlStateManager.translate(0.0F, dy, 0.0F);
+                }
+
+                /* Apply anchor rotation (e.g. 90° X for lying) */
+                if (limb.rotateAngleZ != 0.0F)
+                {
+                    GlStateManager.rotate(limb.rotateAngleZ * deg, 0.0F, 0.0F, 1.0F);
+                }
+                if (limb.rotateAngleY != 0.0F)
+                {
+                    GlStateManager.rotate(limb.rotateAngleY * deg, 0.0F, 1.0F, 0.0F);
+                }
+                if (limb.rotateAngleX != 0.0F)
+                {
+                    GlStateManager.rotate(limb.rotateAngleX * deg, 1.0F, 0.0F, 0.0F);
+                }
+
+                break;
+            }
+        }
+    }
+
+    /**
+     * Copies rotation angles from ModelCustom's animated custom limbs to the
+     * standard ModelBiped fields (bipedHead, bipedBody, bipedLeftArm, etc.)
+     * based on each limb's armor slot assignment.
+     *
+     * IMPORTANT: Only the FIRST limb per biped part is synced. Child/overlay
+     * limbs (bodywear, legwear, armwear) often have zero rotation because they
+     * inherit their parent's rotation via the GL matrix stack. If we let them
+     * overwrite, they'd zero out the correct rotation from the main limb.
+     */
+    private void syncCustomModelToBiped(ModelCustom model)
+    {
+        boolean headSet = false;
+        boolean bodySet = false;
+        boolean leftArmSet = false;
+        boolean rightArmSet = false;
+        boolean leftLegSet = false;
+        boolean rightLegSet = false;
+
+        for (ModelCustomRenderer limb : model.armor)
+        {
+            switch (limb.limb.slot)
+            {
+                case HEAD:
+                    if (!headSet) { copyAngles(limb, model.bipedHead); headSet = true; }
+                    break;
+                case CHEST:
+                case LEGGINGS:
+                    if (!bodySet) { copyAngles(limb, model.bipedBody); bodySet = true; }
+                    break;
+                case LEFT_SHOULDER:
+                    if (!leftArmSet) { copyAngles(limb, model.bipedLeftArm); leftArmSet = true; }
+                    break;
+                case RIGHT_SHOULDER:
+                    if (!rightArmSet) { copyAngles(limb, model.bipedRightArm); rightArmSet = true; }
+                    break;
+                case LEFT_LEG:
+                    if (!leftLegSet) { copyAngles(limb, model.bipedLeftLeg); leftLegSet = true; }
+                    break;
+                case RIGHT_LEG:
+                    if (!rightLegSet) { copyAngles(limb, model.bipedRightLeg); rightLegSet = true; }
+                    break;
+                case LEFT_FOOT:
+                    if (!leftLegSet) { copyAngles(limb, model.bipedLeftLeg); leftLegSet = true; }
+                    break;
+                case RIGHT_FOOT:
+                    if (!rightLegSet) { copyAngles(limb, model.bipedRightLeg); rightLegSet = true; }
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private static void copyAngles(ModelRenderer source, ModelRenderer target)
+    {
+        target.rotateAngleX = source.rotateAngleX;
+        target.rotateAngleY = source.rotateAngleY;
+        target.rotateAngleZ = source.rotateAngleZ;
+    }
+
 
     private void renderArmorSlot(EntityLivingBase entity, ItemStack stack, ItemArmor item, ModelCustomRenderer limb, EntityEquipmentSlot slot, float partialTicks, float scale)
     {
