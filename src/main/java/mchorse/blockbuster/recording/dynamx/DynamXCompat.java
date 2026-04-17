@@ -69,11 +69,13 @@ public final class DynamXCompat
             methodGetControls = classBasicEngineModule.getMethod("getControls");
             methodSetControls = classBasicEngineModule.getMethod("setControls", int.class);
 
-            /* Seats are stored on PackInfo, NOT on SeatsModule.
-             * Pattern: vehicle.getPackInfo().getPartsByType(BasePartSeat.class) -> List<BasePartSeat> */
+            /* Seats are stored on PackInfo.getPartsByType(BasePartSeat.class).
+             * getPartsByType is a default method on IPartContainer — look it up
+             * on that interface directly (can't rely on getPackInfo().getReturnType()
+             * due to generic erasure to IPhysicsPackInfo). */
             methodGetPackInfo = classBaseVehicleEntity.getMethod("getPackInfo");
-            Class<?> packInfoReturn = methodGetPackInfo.getReturnType();
-            methodGetPartsByType = packInfoReturn.getMethod("getPartsByType", Class.class);
+            Class<?> classIPartContainer = Class.forName("fr.dynamx.api.contentpack.object.IPartContainer");
+            methodGetPartsByType = classIPartContainer.getMethod("getPartsByType", Class.class);
 
             methodMountEntity = classBasePartSeat.getMethod("mountEntity",
                     classBaseVehicleEntity, classSeatsModule, Entity.class);
@@ -86,10 +88,12 @@ public final class DynamXCompat
             methodEventGetEntity = vehicleEntityEvent.getMethod("getEntity");
 
             available = true;
+            System.out.println("[Blockbuster] DynamXCompat initialized OK");
         }
         catch (Throwable t)
         {
             available = false;
+            System.out.println("[Blockbuster] DynamXCompat init failed: " + t);
         }
 
         return available;
@@ -181,22 +185,48 @@ public final class DynamXCompat
      */
     public static boolean mountSeat(Entity vehicle, Entity rider, int seatIndex)
     {
-        if (!isAvailable() || vehicle == null || rider == null) return false;
+        if (!isAvailable())
+        {
+            System.out.println("[Blockbuster] mountSeat: DynamXCompat not available");
+            return false;
+        }
+        if (vehicle == null || rider == null) return false;
         try
         {
             Object seatsModule = methodGetModuleByType.invoke(vehicle, classSeatsModule);
-            if (seatsModule == null) return false;
+            if (seatsModule == null)
+            {
+                System.out.println("[Blockbuster] mountSeat: no SeatsModule on " + vehicle);
+                return false;
+            }
 
             java.util.List<?> seats = getSeatList(vehicle);
-            if (seats == null || seats.isEmpty()) return false;
-            if (seatIndex < 0 || seatIndex >= seats.size()) return false;
+            if (seats == null || seats.isEmpty())
+            {
+                System.out.println("[Blockbuster] mountSeat: no seats on " + vehicle);
+                return false;
+            }
+            if (seatIndex < 0 || seatIndex >= seats.size())
+            {
+                /* Fall back to first seat if recorded index is out of range */
+                System.out.println("[Blockbuster] mountSeat: seatIndex " + seatIndex + " out of range (" + seats.size() + "), using 0");
+                seatIndex = 0;
+            }
 
             Object seat = seats.get(seatIndex);
             Object result = methodMountEntity.invoke(seat, vehicle, seatsModule, rider);
-            return result instanceof Boolean && (Boolean) result;
+            boolean ok = result instanceof Boolean && (Boolean) result;
+            if (!ok)
+            {
+                System.out.println("[Blockbuster] mountSeat: mountEntity returned false");
+            }
+            return ok;
         }
-        catch (Throwable ignored) {}
-        return false;
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] mountSeat threw: " + t);
+            return false;
+        }
     }
 
     /**
