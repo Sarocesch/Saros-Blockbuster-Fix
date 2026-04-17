@@ -231,6 +231,17 @@ public class RecordManager
                 this.records.put(filename, record);
             }
 
+            /* Reset any DynamX vehicles the player drove during recording to
+             * their start positions. Also works when cancelled — user expects
+             * the vehicle to be back where they started, not at the end of the
+             * drive. If the player is still riding, dismount first so the
+             * teleport doesn't strand them in the air. */
+            if (player.isRiding())
+            {
+                player.dismountRidingEntity();
+            }
+            mchorse.blockbuster.recording.actions.VehicleMountAction.resetVehicles(record, player.world);
+
             this.recorders.remove(player);
             MorphAPI.demorph(player);
 

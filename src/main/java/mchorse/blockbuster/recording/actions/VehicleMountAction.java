@@ -82,13 +82,11 @@ public class VehicleMountAction extends MountingAction
     {
         if (!this.isMounting)
         {
-            /* Dismount: also reset the vehicle to start pose so stopping the
-             * playback leaves things tidy. */
-            Entity vehicle = EntityUtils.entityByUUID(actor.world, this.target);
-            if (this.hasStartPose && DynamXCompat.isVehicle(vehicle))
-            {
-                this.teleportVehicle(vehicle);
-            }
+            /* Dismount: do NOT teleport the vehicle here — the actor is still
+             * riding it. Teleporting would snap the vehicle to the start pose
+             * while the actor is still attached, leaving the actor floating
+             * at the end-of-drive position. Vehicle reset happens at
+             * playback stop via RecordPlayer.stopPlaying(). */
             super.apply(actor);
             return;
         }
@@ -98,6 +96,9 @@ public class VehicleMountAction extends MountingAction
 
         if (DynamXCompat.isVehicle(vehicle))
         {
+            /* Teleport vehicle to start pose only if playback tick == mount tick.
+             * This is the FIRST mount of this playback loop — reset so each
+             * loop starts from the same position. */
             if (this.hasStartPose)
             {
                 this.teleportVehicle(vehicle);
@@ -161,12 +162,24 @@ public class VehicleMountAction extends MountingAction
     private void teleportVehicle(Entity vehicle)
     {
         if (vehicle == null) return;
-        vehicle.setPositionAndRotation(this.startX, this.startY, this.startZ, this.startYaw, this.startPitch);
+
+        /* Remove any passengers first so they don't get stranded at the vehicle's
+         * old position when we teleport (passenger positions only sync on the
+         * vehicle's next onUpdate tick, which can leave them floating). */
+        if (!vehicle.getPassengers().isEmpty())
+        {
+            vehicle.removePassengers();
+        }
+
+        vehicle.setLocationAndAngles(this.startX, this.startY, this.startZ, this.startYaw, this.startPitch);
+        vehicle.prevPosX = vehicle.lastTickPosX = this.startX;
+        vehicle.prevPosY = vehicle.lastTickPosY = this.startY;
+        vehicle.prevPosZ = vehicle.lastTickPosZ = this.startZ;
+        vehicle.prevRotationYaw = this.startYaw;
+        vehicle.prevRotationPitch = this.startPitch;
         vehicle.motionX = 0;
         vehicle.motionY = 0;
         vehicle.motionZ = 0;
-        vehicle.prevRotationYaw = this.startYaw;
-        vehicle.prevRotationPitch = this.startPitch;
     }
 
     /**

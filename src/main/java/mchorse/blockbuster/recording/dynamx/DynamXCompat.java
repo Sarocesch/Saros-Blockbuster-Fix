@@ -36,11 +36,11 @@ public final class DynamXCompat
     private static Method methodGetModuleByType;
     private static Method methodGetControls;
     private static Method methodSetControls;
-    private static Method methodGetSeats;
-    private static Method methodMountEntity;
-    private static Method methodGetRidingEntity;
-    private static Method methodGetSeatToPassengerMap;
-    private static Method methodGetRidingSeat;
+    private static Method methodGetPackInfo;            /* BaseVehicleEntity.getPackInfo() */
+    private static Method methodGetPartsByType;         /* IModelPackObject.getPartsByType(Class) */
+    private static Method methodMountEntity;            /* BasePartSeat.mountEntity(vehicle, seatsModule, rider) */
+    private static Method methodGetSeatToPassengerMap;  /* SeatsModule.getSeatToPassengerMap() */
+    private static Method methodGetRidingSeat;          /* SeatsModule.getRidingSeat(Entity) */
     private static Method methodEventGetEntity;
 
     private DynamXCompat() {}
@@ -62,14 +62,19 @@ public final class DynamXCompat
             classBasePartSeat = Class.forName("fr.dynamx.common.contentpack.parts.BasePartSeat");
             classVehicleEntityEventControllerUpdate = Class.forName("fr.dynamx.api.events.VehicleEntityEvent$ControllerUpdate");
 
-            /* BaseVehicleEntity is actually on ModularPhysicsEntity — walk up */
+            /* getModuleByType is on ModularPhysicsEntity */
             Class<?> modularPhysicsEntity = Class.forName("fr.dynamx.common.entities.ModularPhysicsEntity");
             methodGetModuleByType = modularPhysicsEntity.getMethod("getModuleByType", Class.class);
 
             methodGetControls = classBasicEngineModule.getMethod("getControls");
             methodSetControls = classBasicEngineModule.getMethod("setControls", int.class);
 
-            methodGetSeats = classSeatsModule.getMethod("getSeats");
+            /* Seats are stored on PackInfo, NOT on SeatsModule.
+             * Pattern: vehicle.getPackInfo().getPartsByType(BasePartSeat.class) -> List<BasePartSeat> */
+            methodGetPackInfo = classBaseVehicleEntity.getMethod("getPackInfo");
+            Class<?> packInfoReturn = methodGetPackInfo.getReturnType();
+            methodGetPartsByType = packInfoReturn.getMethod("getPartsByType", Class.class);
+
             methodMountEntity = classBasePartSeat.getMethod("mountEntity",
                     classBaseVehicleEntity, classSeatsModule, Entity.class);
 
@@ -159,8 +164,20 @@ public final class DynamXCompat
     }
 
     /**
-     * Mount an entity onto a specific seat of a vehicle (by index).
-     * Returns true on success.
+     * Get the list of BasePartSeat instances for a vehicle via PackInfo.
+     * Returns null if vehicle has no pack info or is not a DynamX vehicle.
+     */
+    private static java.util.List<?> getSeatList(Entity vehicle) throws Exception
+    {
+        Object packInfo = methodGetPackInfo.invoke(vehicle);
+        if (packInfo == null) return null;
+        Object seats = methodGetPartsByType.invoke(packInfo, classBasePartSeat);
+        return seats instanceof java.util.List ? (java.util.List<?>) seats : null;
+    }
+
+    /**
+     * Mount an entity onto a specific seat of a vehicle (by index in the
+     * pack-info seat list). Returns true on success.
      */
     public static boolean mountSeat(Entity vehicle, Entity rider, int seatIndex)
     {
@@ -170,10 +187,8 @@ public final class DynamXCompat
             Object seatsModule = methodGetModuleByType.invoke(vehicle, classSeatsModule);
             if (seatsModule == null) return false;
 
-            Object seatsObj = methodGetSeats.invoke(seatsModule);
-            if (!(seatsObj instanceof java.util.List)) return false;
-
-            java.util.List<?> seats = (java.util.List<?>) seatsObj;
+            java.util.List<?> seats = getSeatList(vehicle);
+            if (seats == null || seats.isEmpty()) return false;
             if (seatIndex < 0 || seatIndex >= seats.size()) return false;
 
             Object seat = seats.get(seatIndex);
@@ -185,7 +200,7 @@ public final class DynamXCompat
     }
 
     /**
-     * Get the seat index that an entity is riding on, or -1 if not riding or not found.
+     * Get the seat index that an entity is riding on, or -1 if not found.
      */
     public static int getSeatIndex(Entity vehicle, Entity rider)
     {
@@ -198,10 +213,8 @@ public final class DynamXCompat
             Object seat = methodGetRidingSeat.invoke(seatsModule, rider);
             if (seat == null) return -1;
 
-            Object seatsObj = methodGetSeats.invoke(seatsModule);
-            if (!(seatsObj instanceof java.util.List)) return -1;
-
-            java.util.List<?> seats = (java.util.List<?>) seatsObj;
+            java.util.List<?> seats = getSeatList(vehicle);
+            if (seats == null) return -1;
             for (int i = 0; i < seats.size(); i++)
             {
                 if (seats.get(i) == seat) return i;
