@@ -201,5 +201,6 @@ public class ActionRegistry
         register("close_container", CloseContainerAction.class);
         register("vehicle_mount", VehicleMountAction.class);
         register("vehicle_control", VehicleControlAction.class);
+        register("mwf_fire", MWFFireAction.class);
     }
 }

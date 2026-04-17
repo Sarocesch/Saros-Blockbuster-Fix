@@ -8,6 +8,7 @@ set "FORGE_RECOMP=C:/Users/saroc/.gradle/caches/forge_gradle/minecraft_user_repo
 set "BB_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/mods/blockbuster-2.7-1.12.2-dynamxfix.jar"
 set "MCLIB_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/mods/mclib-2.4.3-1.12.2.jar"
 set "DYNAMX_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/mods/DynamX-4.2.0-beta-saros-temp-fix-all.jar"
+set "MWF_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/mods/modularwarfare-shining-saros-fix-0.8.jar"
 set "METAMORPH_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/mods/metamorph-1.5-1.12.2-sarosfix.jar"
 set "LWJGL_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/libraries/org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.jar"
 set "SPECIAL_SOURCE=C:/Users/saroc/.gradle/caches/forge_gradle/maven_downloader/net/md-5/SpecialSource/1.8.3/SpecialSource-1.8.3-shaded.jar"
@@ -17,21 +18,21 @@ set "MODS=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/mods"
 set "ROOT=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
 
-set "CP=%FORGE_RECOMP%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%"
+set "CP=%FORGE_RECOMP%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%MWF_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%;%GUAVA_JAR%;%NETTY_JAR%"
 
 set "SOURCES="
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster_pack/client/render/layers/LayerActorArmor.java"
-set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/actions/Action.java"
-set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/actions/MountingAction.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/actions/VehicleControlAction.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/actions/VehicleMountAction.java"
+set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/actions/MWFFireAction.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/actions/ActionRegistry.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/dynamx/DynamXCompat.java"
-set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/dynamx/DynamXCompatHandler.java"
+set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/dynamx/DynamXVehicleHandler.java"
+set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/mwf/MWFCompat.java"
+set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/mwf/MWFCompatHandler.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/RecordPlayer.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/RecordRecorder.java"
 set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/recording/capturing/ActionHandler.java"
-set "SOURCES=%SOURCES% %ROOT%/src/main/java/mchorse/blockbuster/CommonProxy.java"
 
 echo === Cleaning work dir ===
 if exist "%WORK%" rmdir /s /q "%WORK%"
@@ -39,8 +40,11 @@ mkdir "%WORK%"
 mkdir "%WORK%\output"
 mkdir "%WORK%\srg_out"
 
+set "GUAVA_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/libraries/com/google/guava/guava/21.0/guava-21.0.jar"
+set "NETTY_JAR=C:/Users/saroc/AppData/Roaming/Minewache-Launcher/Die_Minewache/libraries/io/netty/netty-all/4.1.9.Final/netty-all-4.1.9.Final.jar"
+
 echo === Compiling ===
-"%JAVA%/javac" -source 1.8 -target 1.8 -cp "%CP%" -d "%WORK%\output" %SOURCES%
+"%JAVA%/javac" -source 1.8 -target 1.8 -proc:none -cp "%CP%" -d "%WORK%\output" %SOURCES%
 if errorlevel 1 (
     echo COMPILE FAILED
     pause
@@ -52,7 +56,7 @@ cd /d "%WORK%\output"
 "%JAVA%/jar" cf "%WORK%/mcp.jar" mchorse
 
 echo === Reobfuscating MCP -^> SRG ===
-"%JAVA%/java" -cp "%FORGE_RECOMP%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%;%SPECIAL_SOURCE%" net.md_5.specialsource.SpecialSource --in-jar "%WORK%/mcp.jar" --out-jar "%WORK%/srg.jar" --srg-in "%MCP_SRG%" --live
+"%JAVA%/java" -cp "%CP%;%SPECIAL_SOURCE%" net.md_5.specialsource.SpecialSource --in-jar "%WORK%/mcp.jar" --out-jar "%WORK%/srg.jar" --srg-in "%MCP_SRG%" --live
 if errorlevel 1 (
     echo REOBF FAILED
     pause

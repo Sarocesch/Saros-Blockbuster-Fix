@@ -105,6 +105,13 @@ public class ActionHandler
             = new mchorse.blockbuster.recording.dynamx.DynamXVehicleHandler();
 
     /**
+     * Tracks whether we've attempted to register soft-dependency event handlers.
+     * Done lazily on first world load so Forge mod init has finished and the
+     * soft-dependency mods (DynamX, MWF) have registered their event classes.
+     */
+    private static boolean softCompatsRegistered = false;
+
+    /**
      * Adds a world event listener
      */
     @SubscribeEvent
@@ -120,6 +127,34 @@ public class ActionHandler
         if (world instanceof WorldServer && ((WorldServer) world).provider.getDimension() == 0)
         {
             Blockbuster.reloadServerModels(true);
+        }
+
+        /* Lazy-register soft-dependency compat handlers on first world load */
+        if (!softCompatsRegistered)
+        {
+            softCompatsRegistered = true;
+            tryRegisterCompat("com.modularwarfare.api.WeaponFireEvent",
+                    "mchorse.blockbuster.recording.mwf.MWFCompatHandler",
+                    "MWF detected — cosmetic weapon fire recording enabled");
+        }
+    }
+
+    /**
+     * Register a Forge event listener only if its anchor class is loadable.
+     * Uses reflection so Blockbuster doesn't crash when the soft-dep mod is absent.
+     */
+    private static void tryRegisterCompat(String anchorClass, String handlerClass, String logMsg)
+    {
+        try
+        {
+            Class.forName(anchorClass);
+            Object handler = Class.forName(handlerClass).getConstructor().newInstance();
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(handler);
+            System.out.println("[Blockbuster] " + logMsg);
+        }
+        catch (Throwable ignored)
+        {
+            /* Mod absent or handler failed to load — silently disabled */
         }
     }
 
