@@ -12,6 +12,7 @@ import mchorse.blockbuster.network.common.PacketActorPause;
 import mchorse.blockbuster.network.common.recording.PacketPlayback;
 import mchorse.blockbuster.network.common.recording.PacketSyncTick;
 import mchorse.blockbuster.recording.data.Frame;
+import mchorse.blockbuster.recording.actions.VehicleMountAction;
 import mchorse.blockbuster.recording.data.Mode;
 import mchorse.blockbuster.recording.data.Record;
 import mchorse.blockbuster.utils.EntityUtils;
@@ -315,6 +316,13 @@ public class RecordPlayer
             this.actor.setEntityInvulnerable(this.replay.invincible);
         }
 
+        /* Reset any DynamX vehicles referenced by this record to their recorded
+         * start pose. Ensures repeatable playback regardless of current vehicle state. */
+        if (!this.actor.world.isRemote && tick == 0)
+        {
+            VehicleMountAction.resetVehicles(this.record, this.actor.world);
+        }
+
         this.applyFrame(this.playing ? tick : tick - 1, this.actor, true);
 
         EntityUtils.setRecordPlayer(this.actor, this);
@@ -339,6 +347,18 @@ public class RecordPlayer
         if (!this.actor.world.isRemote && this.replay != null && this.replay.invincible == true)
         {
             this.actor.setEntityInvulnerable(false);
+        }
+
+        /* Reset any DynamX vehicles referenced by this record so stopping
+         * playback leaves them where recording started (not where they ended up). */
+        if (!this.actor.world.isRemote)
+        {
+            /* Dismount actor first so the vehicle is free to be teleported */
+            if (this.actor.isRiding())
+            {
+                this.actor.dismountRidingEntity();
+            }
+            VehicleMountAction.resetVehicles(this.record, this.actor.world);
         }
     }
 

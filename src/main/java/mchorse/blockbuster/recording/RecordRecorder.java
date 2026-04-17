@@ -54,6 +54,13 @@ public class RecordRecorder
     public boolean teleportBack;
 
     /**
+     * Last DynamX vehicle control bitmask recorded — used for delta-compression
+     * so VehicleControlAction is only emitted when the controls change.
+     * Value {@code -1} means "no prior control state recorded yet".
+     */
+    public int lastVehicleControls = -1;
+
+    /**
      * First frame (to restore the position)
      */
     private Frame first;

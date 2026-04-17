@@ -199,5 +199,7 @@ public class ActionRegistry
 
         register("interact_entity", InteractEntityAction.class);
         register("close_container", CloseContainerAction.class);
+        register("vehicle_mount", VehicleMountAction.class);
+        register("vehicle_control", VehicleControlAction.class);
     }
 }

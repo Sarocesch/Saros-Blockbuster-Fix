@@ -31,13 +31,17 @@ import mchorse.blockbuster.recording.actions.MorphActionAction;
 import mchorse.blockbuster.recording.actions.MountingAction;
 import mchorse.blockbuster.recording.actions.PlaceBlockAction;
 import mchorse.blockbuster.recording.actions.ShootArrowAction;
+import mchorse.blockbuster.recording.actions.VehicleMountAction;
+import mchorse.blockbuster.recording.dynamx.DynamXCompat;
 import mchorse.blockbuster_pack.morphs.StructureMorph;
 import mchorse.metamorph.api.events.MorphActionEvent;
 import mchorse.metamorph.api.events.MorphEvent;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
@@ -87,13 +91,21 @@ import java.util.List;
 public class ActionHandler
 {
     /**
-     * Last TE was spotted during block breaking action (used for 
-     * damage control of tile entities) 
+     * Last TE was spotted during block breaking action (used for
+     * damage control of tile entities)
      */
     public static TileEntity lastTE;
 
     /**
-     * Adds a world event listener  
+     * Server-tick poller for DynamX vehicle controls. ControllerUpdate events
+     * fire CLIENT-side only, so we poll engine.getControls() each server tick
+     * for every recording player and emit a VehicleControlAction when it changes.
+     */
+    private final mchorse.blockbuster.recording.dynamx.DynamXVehicleHandler dynamxHandler
+            = new mchorse.blockbuster.recording.dynamx.DynamXVehicleHandler();
+
+    /**
+     * Adds a world event listener
      */
     @SubscribeEvent
     public void onWorldLoad(WorldEvent.Load event)
@@ -298,16 +310,67 @@ public class ActionHandler
     @SubscribeEvent
     public void onPlayerMountsSomething(EntityMountEvent event)
     {
-        if (event.getEntityMounting() instanceof EntityPlayer)
-        {
-            EntityPlayer player = (EntityPlayer) event.getEntityMounting();
-            List<Action> events = CommonProxy.manager.getActions(player);
+        if (!(event.getEntityMounting() instanceof EntityPlayer)) return;
 
-            if (!player.world.isRemote && events != null)
+        EntityPlayer player = (EntityPlayer) event.getEntityMounting();
+        List<Action> events = CommonProxy.manager.getActions(player);
+
+        if (player.world.isRemote || events == null) return;
+
+        Entity mountTarget = event.getEntityBeingMounted();
+
+        /* For DynamX vehicles, record a full VehicleMountAction carrying the seat
+         * index, vehicle start pose, and an NBT snapshot. Playback uses the snapshot
+         * to respawn the vehicle if it was destroyed, and the start pose to teleport
+         * it back on each loop/stop so playback is deterministic. */
+        if (DynamXCompat.isVehicle(mountTarget))
+        {
+            int seatIndex = event.isMounting()
+                    ? Math.max(DynamXCompat.getSeatIndex(mountTarget, player), 0)
+                    : 0;
+
+            NBTTagCompound snapshot = null;
+            if (event.isMounting())
             {
-                events.add(new MountingAction(event.getEntityBeingMounted().getUniqueID(), event.isMounting()));
+                NBTTagCompound tag = new NBTTagCompound();
+                try
+                {
+                    /* writeToNBTOptional embeds the entity "id" so EntityList
+                     * can reconstruct the right vehicle subclass later. */
+                    if (mountTarget.writeToNBTOptional(tag))
+                    {
+                        snapshot = tag;
+                    }
+                }
+                catch (Throwable ignored) {}
             }
+
+            events.add(new VehicleMountAction(
+                    mountTarget.getUniqueID(),
+                    event.isMounting(),
+                    seatIndex,
+                    mountTarget.posX,
+                    mountTarget.posY,
+                    mountTarget.posZ,
+                    mountTarget.rotationYaw,
+                    mountTarget.rotationPitch,
+                    snapshot));
+
+            /* Reset delta-compression baseline on mount so first control change
+             * after mounting always emits a VehicleControlAction. */
+            if (event.isMounting())
+            {
+                RecordRecorder recorder = CommonProxy.manager.recorders.get(player);
+                if (recorder != null)
+                {
+                    recorder.lastVehicleControls = -1;
+                }
+            }
+            return;
         }
+
+        /* Fallback: vanilla mount */
+        events.add(new MountingAction(mountTarget.getUniqueID(), event.isMounting()));
     }
 
     /**
@@ -403,6 +466,7 @@ public class ActionHandler
         if (!player.world.isRemote)
         {
             CommonProxy.manager.abort(player);
+            this.dynamxHandler.clearPlayer(player.getUniqueID());
         }
     }
 
@@ -509,6 +573,10 @@ public class ActionHandler
             }
             else
             {
+                /* Poll DynamX vehicle controls BEFORE frame capture so any
+                 * VehicleControlAction emitted lands on the same tick as the
+                 * frame showing the new state. No-op when DynamX is absent. */
+                this.dynamxHandler.tickRecordingPlayer(player);
                 recorder.record(player);
             }
         }
