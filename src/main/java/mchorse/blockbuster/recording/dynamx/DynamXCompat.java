@@ -77,8 +77,13 @@ public final class DynamXCompat
             Class<?> classIPartContainer = Class.forName("fr.dynamx.api.contentpack.object.IPartContainer");
             methodGetPartsByType = classIPartContainer.getMethod("getPartsByType", Class.class);
 
+            /* mountEntity is declared as mountEntity(A, SeatsModule, Entity) where
+             * A extends IDynamXObject — after type erasure the bytecode parameter
+             * is IDynamXObject, not BaseVehicleEntity.  Using the wrong class here
+             * caused NoSuchMethodException, silently disabling all DynamX compat. */
+            Class<?> classIDynamXObject = Class.forName("fr.dynamx.common.entities.IDynamXObject");
             methodMountEntity = classBasePartSeat.getMethod("mountEntity",
-                    classBaseVehicleEntity, classSeatsModule, Entity.class);
+                    classIDynamXObject, classSeatsModule, Entity.class);
 
             methodGetSeatToPassengerMap = classSeatsModule.getMethod("getSeatToPassengerMap");
             methodGetRidingSeat = classSeatsModule.getMethod("getRidingSeat", Entity.class);

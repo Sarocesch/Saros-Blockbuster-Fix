@@ -1,6 +1,8 @@
 package mchorse.blockbuster.recording.actions;
 
 import io.netty.buffer.ByteBuf;
+import mchorse.blockbuster.network.Dispatcher;
+import mchorse.blockbuster.network.common.mwf.PacketMWFFireReplay;
 import mchorse.blockbuster.recording.mwf.MWFCompat;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.nbt.NBTTagCompound;
@@ -43,7 +45,12 @@ public class MWFFireAction extends Action
     {
         if (actor == null || actor.world.isRemote) return;
         if (this.internalName.isEmpty()) return;
-        MWFCompat.sendFireAnimation(actor, this.internalName, this.fireTickDelay);
+        if (!MWFCompat.isAvailable()) return;
+        /* Use a Blockbuster packet that looks up by entity ID so EntityActor is
+         * found correctly — MWF's own PacketOtherShooterAnimation uses
+         * getPlayerEntityByUUID which returns null for non-player entities. */
+        Dispatcher.sendToTracked(actor,
+                new PacketMWFFireReplay(actor.getEntityId(), this.internalName, this.fireTickDelay));
     }
 
     @Override

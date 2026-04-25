@@ -49,7 +49,7 @@ public class AttackAction extends DamageAction
 
         if (target != null)
         {
-            target.attackEntityFrom(DamageSource.causeMobDamage(actor), this.damage);
+            target.attackEntityFrom(new DamageSource("blockbuster_actor"), this.damage);
 
             AbstractMorph morph = mchorse.metamorph.api.EntityUtils.getMorph(actor);
 

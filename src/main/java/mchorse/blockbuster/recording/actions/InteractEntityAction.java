@@ -48,7 +48,8 @@ public class InteractEntityAction extends ItemUseAction
 
         if (target != null)
         {
-            player.interactOn(target, this.hand);
+            /* Skip interactOn: ForgeHooks.onInteractEntity fires EntityInteract, CustomNPCs casts fakePlayer→IPlayer and crashes */
+            target.processInitialInteract(player, this.hand);
         }
     }
 }

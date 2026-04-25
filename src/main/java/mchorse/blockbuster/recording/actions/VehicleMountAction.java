@@ -210,6 +210,7 @@ public class VehicleMountAction extends MountingAction
                 {
                     mount.teleportVehicle(vehicle);
                     DynamXCompat.setVehicleControls(vehicle, 0);
+                    vehicle.setDead();
                 }
             }
         }

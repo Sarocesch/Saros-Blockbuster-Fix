@@ -104,6 +104,8 @@ import mchorse.blockbuster.network.server.scene.ServerHandlerSceneManage;
 import mchorse.blockbuster.network.server.scene.ServerHandlerScenePause;
 import mchorse.blockbuster.network.server.scene.ServerHandlerScenePlayback;
 import mchorse.blockbuster.network.server.scene.ServerHandlerSceneRecord;
+import mchorse.blockbuster.network.client.mwf.ClientHandlerMWFFireReplay;
+import mchorse.blockbuster.network.common.mwf.PacketMWFFireReplay;
 import mchorse.blockbuster.network.server.scene.ServerHandlerSceneRequestCast;
 import mchorse.blockbuster.network.server.scene.sync.ServerHandlerSceneGoto;
 import mchorse.blockbuster.network.server.scene.sync.ServerHandlerScenePlay;
@@ -206,6 +208,9 @@ public class Dispatcher
             
             /* Damage Control */
             register(PacketDamageControlCheck.class, ServerHandlerDamageControlCheck.class, Side.SERVER);
+
+            /* MWF cosmetic fire replay — uses entity ID so EntityActor is found */
+            register(PacketMWFFireReplay.class, ClientHandlerMWFFireReplay.class, Side.CLIENT);
 
             CameraHandler.registerMessages();
         }
