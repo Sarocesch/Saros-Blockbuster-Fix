@@ -1,11 +1,13 @@
 package mchorse.blockbuster.recording.actions;
 
+import mchorse.blockbuster.common.entity.EntityActor;
 import mchorse.blockbuster.recording.data.Frame;
 import mchorse.blockbuster.utils.EntityUtils;
 import mchorse.mclib.utils.RayTracing;
 import mchorse.metamorph.api.morphs.AbstractMorph;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.DamageSource;
 
@@ -49,7 +51,10 @@ public class AttackAction extends DamageAction
 
         if (target != null)
         {
-            target.attackEntityFrom(new DamageSource("blockbuster_actor"), this.damage);
+            /* fakePlayer is EntityPlayer so CustomNPCs can cast getTrueSource() to IPlayer; EntityActor can't */
+            EntityPlayer src = (actor instanceof EntityActor) ? ((EntityActor) actor).fakePlayer : null;
+            DamageSource ds = (src != null) ? DamageSource.causeMobDamage(src) : new DamageSource("blockbuster_actor");
+            target.attackEntityFrom(ds, this.damage);
 
             AbstractMorph morph = mchorse.metamorph.api.EntityUtils.getMorph(actor);
 

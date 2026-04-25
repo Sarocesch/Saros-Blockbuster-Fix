@@ -230,10 +230,7 @@ public class VehicleMountAction extends MountingAction
             this.startYaw = buf.readFloat();
             this.startPitch = buf.readFloat();
         }
-        if (buf.readBoolean())
-        {
-            this.vehicleSnapshot = ByteBufUtils.readTag(buf);
-        }
+        buf.readBoolean(); /* snapshot not sent over network */
     }
 
     @Override
@@ -250,12 +247,7 @@ public class VehicleMountAction extends MountingAction
             buf.writeFloat(this.startYaw);
             buf.writeFloat(this.startPitch);
         }
-        boolean hasSnapshot = this.vehicleSnapshot != null;
-        buf.writeBoolean(hasSnapshot);
-        if (hasSnapshot)
-        {
-            ByteBufUtils.writeTag(buf, this.vehicleSnapshot);
-        }
+        buf.writeBoolean(false); /* snapshot is disk-only; too large for network packets */
     }
 
     @Override
