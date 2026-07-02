@@ -59,6 +59,17 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
         Minecraft mc = Minecraft.getMinecraft();
         TileEntityModelSettings teSettings = te.getSettings();
 
+        /* Global model blocks bypass vanilla's 64-block TESR culling completely,
+         * so without this check they render from anywhere on the map every frame.
+         * Cap at the player's render distance so distant decorative blocks don't
+         * burn GPU time when the player can't see them anyway. */
+        if (teSettings.isGlobal())
+        {
+            double distSq = x * x + y * y + z * z;
+            double maxDist = mc.gameSettings.renderDistanceChunks * 16.0;
+            if (distSq > maxDist * maxDist) return;
+        }
+
         if (!te.morph.isEmpty() && (!Blockbuster.modelBlockDisableRendering.get() || teSettings.isRenderAlways()) && teSettings.isEnabled())
         {
             AbstractMorph morph = te.morph.get();

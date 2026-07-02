@@ -44,6 +44,9 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
 
     private static final String DYNAMX_ARMOR_CLASS = "fr.dynamx.client.renders.model.ModelObjArmor";
 
+    /** Reused per doRenderLayer call to avoid per-frame allocation. Cleared before use. */
+    private final Set<EntityEquipmentSlot> renderedDynamXSlots = new HashSet<EntityEquipmentSlot>();
+
     @Override
     public void doRenderLayer(EntityLivingBase entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch, float scale)
     {
@@ -53,10 +56,7 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
         {
             ModelCustom model = (ModelCustom) base;
 
-            /* Track which equipment slots have already been rendered via the DynamX
-             * scene-graph path so we don't render the same slot multiple times
-             * (multiple limbs can map to the same equipment slot). */
-            Set<EntityEquipmentSlot> renderedDynamXSlots = null;
+            renderedDynamXSlots.clear();
 
             for (ModelCustomRenderer limb : model.armor)
             {
@@ -68,7 +68,8 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
 
                     if (item.getEquipmentSlot() == limb.limb.slot.slot)
                     {
-                        /* Check if Forge returns a custom armor model (e.g. DynamX ModelObjArmor) */
+                        /* Resolve armor model once — avoids calling getArmorModelHook twice
+                         * (previously called here AND again inside renderArmorSlot). */
                         ModelBiped defaultModel = this.getModelFromSlot(limb.limb.slot.slot);
                         ModelBiped armorModel = this.getArmorModelHook(entity, stack, limb.limb.slot.slot, defaultModel);
 
@@ -76,21 +77,15 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
                         {
                             /* DynamX OBJ armor: render via the scene-graph path (model.render)
                              * which manages its own textures. Only render once per slot. */
-                            if (renderedDynamXSlots == null)
+                            if (renderedDynamXSlots.add(limb.limb.slot.slot))
                             {
-                                renderedDynamXSlots = new HashSet<EntityEquipmentSlot>();
-                            }
-
-                            if (!renderedDynamXSlots.contains(limb.limb.slot.slot))
-                            {
-                                renderedDynamXSlots.add(limb.limb.slot.slot);
                                 this.renderDynamXArmorSlot(entity, armorModel, limb.limb.slot.slot, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale);
                             }
                         }
                         else
                         {
-                            /* Standard (vanilla) armor rendering */
-                            this.renderArmorSlot(entity, stack, item, limb, limb.limb.slot.slot, partialTicks, scale);
+                            /* Standard (vanilla) armor rendering — pass pre-resolved model. */
+                            this.renderArmorSlot(entity, stack, item, limb, limb.limb.slot.slot, partialTicks, scale, armorModel);
                         }
                     }
                 }
@@ -239,11 +234,8 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
     }
 
 
-    private void renderArmorSlot(EntityLivingBase entity, ItemStack stack, ItemArmor item, ModelCustomRenderer limb, EntityEquipmentSlot slot, float partialTicks, float scale)
+    private void renderArmorSlot(EntityLivingBase entity, ItemStack stack, ItemArmor item, ModelCustomRenderer limb, EntityEquipmentSlot slot, float partialTicks, float scale, ModelBiped model)
     {
-        ModelBiped model = this.getModelFromSlot(slot);
-        model = this.getArmorModelHook(entity, stack, slot, model);
-
         if (model == null)
         {
             return;

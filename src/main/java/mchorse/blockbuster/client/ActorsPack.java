@@ -16,7 +16,6 @@ import javax.imageio.ImageIO;
 
 import com.google.common.collect.ImmutableSet;
 
-import jdk.nashorn.internal.ir.Block;
 import mchorse.blockbuster.Blockbuster;
 import mchorse.blockbuster.CommonProxy;
 import mchorse.blockbuster.api.ModelPack;
@@ -178,28 +177,16 @@ public class ActorsPack implements IResourcePack
      */
     private InputStream hanldeURLSkins(ResourceLocation location)
     {
-        try
-        {
-            if (Blockbuster.syncedURLTextureDownload.get())
-            {
-                InputStream stream = URLDownloadThread.downloadImage(location);
+        // IMMER asynchron laden (Config syncedURLTextureDownload ignoriert): der synchrone
+        // Pfad lud die Skin per HTTP direkt auf dem Render-Thread -> bis zu 5s Freeze, wo
+        // viele Blockbuster-Morphs mit URL-Skins sind. URLDownloadThread laedt im
+        // Hintergrund (max. ein Thread pro URL) und der fertige Skin wird gedrosselt
+        // ueber URLTextureUploader hochgeladen (wenige Uploads pro Tick statt alle in
+        // einem Frame). Bis dahin dient das schwarze Pixel als Platzhalter; das Skin
+        // poppt rein sobald geladen (danach von der TextureManager-Map gecacht).
+        URLDownloadThread.startIfAbsent(location);
 
-                if (stream == null)
-                {
-                    throw new IOException("Couldn't download image...");
-                }
-
-                return stream;
-            }
-            else
-            {
-                new Thread(new URLDownloadThread(location)).start();
-            }
-        }
-        catch (IOException e)
-        {}
-
-        /* Make it a black pixel in case it fails */
+        /* Black pixel placeholder until the async download finishes */
         return ActorsPack.class.getResourceAsStream("/assets/blockbuster/textures/blocks/black.png");
     }
 

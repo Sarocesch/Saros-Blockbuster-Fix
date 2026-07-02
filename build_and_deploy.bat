@@ -8,7 +8,7 @@ set "FORGE_RECOMP=C:\Users\saroc\.gradle\caches\forge_gradle\minecraft_user_repo
 set "BB_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\blockbuster-2.7-1.12.2-dynamxfix.jar"
 set "MCLIB_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\mclib-2.4.3-1.12.2.jar"
 set "DYNAMX_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\DynamX-4.2.0-beta-saros-temp-fix-all.jar"
-set "MWF_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\modularwarfare-shining-saros-fix-0.8.jar"
+set "MWF_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\modularwarfare-shining-saros-fix-0.7.jar"
 set "METAMORPH_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\metamorph-1.5-1.12.2-sarosfix.jar"
 set "LWJGL_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\org\lwjgl\lwjgl\lwjgl\2.9.4-nightly-20150209\lwjgl-2.9.4-nightly-20150209.jar"
 set "SPECIAL_SOURCE=C:\Users\saroc\.gradle\caches\forge_gradle\maven_downloader\net\md-5\SpecialSource\1.8.3\SpecialSource-1.8.3-shaded.jar"
@@ -20,8 +20,9 @@ set "ROOTFWD=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
 set "GUAVA_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\com\google\guava\guava\21.0\guava-21.0.jar"
 set "NETTY_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\io\netty\netty-all\4.1.9.Final\netty-all-4.1.9.Final.jar"
+set "VECMATH_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\java3d\vecmath\1.5.2\vecmath-1.5.2.jar"
 
-set "CP=%FORGE_RECOMP%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%MWF_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%;%GUAVA_JAR%;%NETTY_JAR%"
+set "CP=%FORGE_RECOMP%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%MWF_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%;%GUAVA_JAR%;%NETTY_JAR%;%VECMATH_JAR%"
 
 echo === Cleaning work dir ===
 if exist "%WORK%" rmdir /s /q "%WORK%"
@@ -33,6 +34,7 @@ REM Write source list to file to handle spaces in ROOT path
 set "SRCLIST=%WORK%\srclist.txt"
 (
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/render/layers/LayerActorArmor.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/tileentity/TileEntityModelRenderer.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/VehicleControlAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/VehicleMountAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/AttackAction.java"
