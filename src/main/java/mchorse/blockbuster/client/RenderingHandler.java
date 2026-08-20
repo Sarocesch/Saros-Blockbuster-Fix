@@ -8,6 +8,7 @@ import mchorse.blockbuster.client.gui.GuiRecordingOverlay;
 import mchorse.blockbuster.client.model.parsing.ModelExtrudedLayer;
 import mchorse.blockbuster.client.particles.emitter.BedrockEmitter;
 import mchorse.blockbuster.client.render.IRenderLast;
+import mchorse.blockbuster.client.render.tileentity.DetachedModelBlocks;
 import mchorse.blockbuster.client.render.tileentity.TileEntityGunItemStackRenderer;
 import mchorse.blockbuster.client.render.tileentity.TileEntityModelItemStackRenderer;
 import mchorse.blockbuster.client.render.tileentity.TileEntityModelRenderer;
@@ -33,6 +34,7 @@ import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.model.ModelPlayer;
 import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.GLAllocation;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderGlobal;
@@ -63,10 +65,9 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
-import org.objectweb.asm.tree.MethodNode;
-import scala.Int;
 
 import javax.vecmath.Vector3d;
+import java.nio.FloatBuffer;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -112,6 +113,9 @@ public class RenderingHandler
     private static boolean emitterIsIterating;
 
     private GuiRecordingOverlay overlay;
+
+    /** Scratch buffer for the projection matrix, see {@link #extendFarPlane()} */
+    private static final FloatBuffer projection = GLAllocation.createDirectFloatBuffer(16);
 
     /**
      *  The transformType of the item currently rendered like TransformType.GUI, TransformType.GROUND, TransformType.THIRD_PERSON_RIGHT_HAND etc.
@@ -340,6 +344,7 @@ public class RenderingHandler
         {
             renderLasts.clear();
             renderedEntityActors.clear();
+            DetachedModelBlocks.resetFrame();
 
             return;
         }
@@ -404,6 +409,13 @@ public class RenderingHandler
 
         renderLasts.clear();
         renderedEntityActors.clear();
+
+        /*
+         * Render model blocks with a custom render distance whose chunk is
+         * no longer loaded on the client. Every tile entity of this frame
+         * has been rendered by now, so nothing gets drawn twice.
+         */
+        DetachedModelBlocks.render(mc.getRenderPartialTicks());
     }
 
     /**
@@ -630,9 +642,24 @@ public class RenderingHandler
         }
     }
 
+    /**
+     * Tick the detached copies of model blocks that have a custom render
+     * distance, so their morphs keep animating while their chunk is gone.
+     */
+    @SubscribeEvent
+    public void onClientTick(TickEvent.ClientTickEvent event)
+    {
+        if (event.phase == TickEvent.Phase.END)
+        {
+            DetachedModelBlocks.tick();
+        }
+    }
+
     @SubscribeEvent
     public void onOrientCamera(EntityViewRenderEvent.CameraSetup event)
     {
+        extendFarPlane();
+
         EntityPlayer thePlayer = Minecraft.getMinecraft().player;
         RecordPlayer player = EntityUtils.getRecordPlayer(thePlayer);
 
@@ -645,6 +672,56 @@ public class RenderingHandler
             event.setYaw(Interpolations.lerp(prev.yawHead, frame.yawHead, partial) - 180);
             event.setPitch(Interpolations.lerp(prev.pitch, frame.pitch, partial));
         }
+    }
+
+    /**
+     * Push the projection matrix's far plane out far enough for model blocks
+     * that have a custom render distance.
+     *
+     * Minecraft sets the far plane to render distance * 16 * sqrt(2), so
+     * with 8 chunks everything past ~181 blocks and with 16 chunks
+     * everything past ~362 blocks is clipped away by OpenGL before any
+     * renderer gets a say. No amount of culling tricks helps against that,
+     * the projection itself has to change.
+     *
+     * This runs in CameraSetup, which happens after Minecraft set up the
+     * projection but before anything of the world is drawn, so terrain and
+     * models end up with the exact same depth mapping and occlusion stays
+     * correct. Only the two far plane terms of the matrix are touched, so
+     * FOV, aspect ratio, zoom and anaglyph offsets are all preserved.
+     */
+    private static void extendFarPlane()
+    {
+        float needed = DetachedModelBlocks.getRequiredFarPlane();
+
+        if (needed <= 0)
+        {
+            return;
+        }
+
+        projection.clear();
+        GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, projection);
+
+        float a = projection.get(10);
+        float b = projection.get(14);
+
+        /* Recover near and far from the perspective matrix */
+        float near = b / (a - 1F);
+        float far = b / (a + 1F);
+
+        /* Not a perspective projection, or nothing to gain */
+        if (!(near > 0F) || !(far > near) || needed <= far)
+        {
+            return;
+        }
+
+        projection.put(10, (needed + near) / (near - needed));
+        projection.put(14, 2F * needed * near / (near - needed));
+        projection.position(0);
+
+        GlStateManager.matrixMode(GL11.GL_PROJECTION);
+        GL11.glLoadMatrix(projection);
+        GlStateManager.matrixMode(GL11.GL_MODELVIEW);
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)

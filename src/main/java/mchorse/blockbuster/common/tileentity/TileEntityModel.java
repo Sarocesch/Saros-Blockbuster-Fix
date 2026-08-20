@@ -43,6 +43,13 @@ public class TileEntityModel extends TileEntity implements ITickable, IRenderLas
     public Morph morph = new Morph();
     public EntityLivingBase entity;
 
+    /**
+     * Marks a client side copy that is kept alive after the chunk got
+     * unloaded, see mchorse.blockbuster.client.render.tileentity.DetachedModelBlocks.
+     * Those copies must never be tracked again.
+     */
+    public boolean detached;
+
     private long lastModelUpdate;
     private TileEntityModelSettings settings = new TileEntityModelSettings();
 
@@ -180,11 +187,21 @@ public class TileEntityModel extends TileEntity implements ITickable, IRenderLas
         return TileEntity.INFINITE_EXTENT_AABB;
     }
 
+    /**
+     * Per block rendering range. When the block has no custom range set
+     * (0), the global Blockbuster config value is used, so nothing changes
+     * for existing model blocks.
+     */
     @Override
     @SideOnly(Side.CLIENT)
     public double getMaxRenderDistanceSquared()
     {
-        float range = Blockbuster.actorRenderingRange.get();
+        float range = this.settings.getRenderDistance();
+
+        if (range <= 0)
+        {
+            range = Blockbuster.actorRenderingRange.get();
+        }
 
         return range * range;
     }

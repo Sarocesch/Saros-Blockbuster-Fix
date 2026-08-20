@@ -70,6 +70,7 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
     private GuiToggleElement renderAlways;
     private GuiToggleElement enableBlockHitbox;
     private GuiTrackpadElement lightLevel;
+    private GuiTrackpadElement renderDistance;
 
     private GuiModelBlockList list;
     private GuiElement subChildren;
@@ -200,7 +201,11 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
         this.lightLevel.integer().limit(0, 15);
         this.lightLevel.tooltip(IKey.lang("blockbuster.gui.model_block.light_level_tooltip"));
 
-        column.add(this.pickMorph, look, this.shadow, this.global, this.enabled, this.excludeResetPlayback, this.renderLast, this.renderAlways, this.enableBlockHitbox, Elements.label(IKey.lang("blockbuster.gui.model_block.light_level")), this.lightLevel);
+        this.renderDistance = new GuiTrackpadElement(mc, (value) -> this.model.getSettings().setRenderDistance(value.floatValue()));
+        this.renderDistance.integer().limit(0, 1024);
+        this.renderDistance.tooltip(IKey.lang("blockbuster.gui.model_block.render_distance_tooltip"), Direction.TOP);
+
+        column.add(this.pickMorph, look, this.shadow, this.global, this.enabled, this.excludeResetPlayback, this.renderLast, this.renderAlways, this.enableBlockHitbox, Elements.label(IKey.lang("blockbuster.gui.model_block.light_level")), this.lightLevel, Elements.label(IKey.lang("blockbuster.gui.model_block.render_distance")), this.renderDistance);
         this.subChildren.add(column);
 
         /* Model blocks */
@@ -457,6 +462,7 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
             this.renderAlways.toggled(this.model.getSettings().isRenderAlways());
             this.enableBlockHitbox.toggled(this.model.getSettings().isBlockHitbox());
             this.lightLevel.setValue(this.model.getSettings().getLightValue());
+            this.renderDistance.setValue(this.model.getSettings().getRenderDistance());
 
             for (int i = 0; i < this.slots.length; i++)
             {

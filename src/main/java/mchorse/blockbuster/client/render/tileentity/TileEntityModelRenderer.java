@@ -59,15 +59,25 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
         Minecraft mc = Minecraft.getMinecraft();
         TileEntityModelSettings teSettings = te.getSettings();
 
-        /* Global model blocks bypass vanilla's 64-block TESR culling completely,
-         * so without this check they render from anywhere on the map every frame.
-         * Cap at the player's render distance so distant decorative blocks don't
-         * burn GPU time when the player can't see them anyway. */
-        if (teSettings.isGlobal())
+        /* Global model blocks bypass vanilla's TESR culling completely, so
+         * without this check they render from anywhere on the map every frame.
+         * A per block render distance (0 = off) overrides the default cap,
+         * which is the player's render distance, so distant decorative blocks
+         * don't burn GPU time when the player can't see them anyway. */
+        if (teSettings.isGlobal() || teSettings.getRenderDistance() > 0)
         {
-            double distSq = x * x + y * y + z * z;
-            double maxDist = mc.gameSettings.renderDistanceChunks * 16.0;
-            if (distSq > maxDist * maxDist) return;
+            double maxDist = teSettings.getRenderDistance() > 0
+                ? teSettings.getRenderDistance()
+                : mc.gameSettings.renderDistanceChunks * 16.0;
+
+            if (x * x + y * y + z * z > maxDist * maxDist) return;
+
+            /* Tell the detached copy that this block is already covered
+             * this frame, otherwise it would be drawn a second time */
+            if (!te.detached && teSettings.getRenderDistance() > 0)
+            {
+                DetachedModelBlocks.markRendered(te.getPos());
+            }
         }
 
         if (!te.morph.isEmpty() && (!Blockbuster.modelBlockDisableRendering.get() || teSettings.isRenderAlways()) && teSettings.isEnabled())
@@ -111,6 +121,19 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
             float yy = (float) y + teSettings.getY();
             float zz = (float) z + 0.5F + teSettings.getZ();
 
+            /*
+             * Vanilla fog is fully opaque at the edge of the player's render
+             * distance, which would turn a model block that is meant to be
+             * seen from far away into a flat fog coloured blob. Blocks with
+             * a custom render distance are therefore rendered without fog.
+             */
+            boolean noFog = teSettings.getRenderDistance() > 0 && GL11.glIsEnabled(GL11.GL_FOG);
+
+            if (noFog)
+            {
+                GlStateManager.disableFog();
+            }
+
             /* Apply transformations */
             GlStateManager.pushMatrix();
             GlStateManager.translate(xx, yy, zz);
@@ -129,6 +152,11 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
             {
                 this.renderer.setShadowSize(morph.getWidth(entity) * 0.8F);
                 this.renderer.doRenderShadowAndFire(te.entity, xx, yy, zz, 0, partialTicks);
+            }
+
+            if (noFog)
+            {
+                GlStateManager.enableFog();
             }
 
             if (wasSet) MatrixUtils.releaseMatrix();
@@ -263,10 +291,17 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
         }
     }
 
+    /**
+     * A custom render distance implies global rendering, otherwise the block
+     * would still be dropped by chunk culling long before the distance is
+     * reached. Distance culling still happens in {@link #render}.
+     */
     @Override
     public boolean isGlobalRenderer(TileEntityModel te)
     {
-        return te.getSettings().isGlobal();
+        TileEntityModelSettings teSettings = te.getSettings();
+
+        return teSettings.isGlobal() || teSettings.getRenderDistance() > 0;
     }
 
     public void transform(TileEntityModel te)

@@ -6,15 +6,21 @@ REM Requires DynamX jar on classpath for DynamXCompatHandler.
 setlocal enabledelayedexpansion
 set "FORGE_RECOMP=C:\Users\saroc\.gradle\caches\forge_gradle\minecraft_user_repo\net\minecraftforge\forge\1.12.2-14.23.5.2859_mapped_snapshot_20171003-1.12\forge-1.12.2-14.23.5.2859_mapped_snapshot_20171003-1.12-recomp.jar"
 set "BB_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\blockbuster-2.7-1.12.2-dynamxfix.jar"
-set "MCLIB_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\mclib-2.4.3-1.12.2.jar"
-set "DYNAMX_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\DynamX-4.2.0-beta-saros-temp-fix-all.jar"
-set "MWF_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\modularwarfare-shining-saros-fix-0.7.jar"
-set "METAMORPH_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\metamorph-1.5-1.12.2-sarosfix.jar"
 set "LWJGL_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\org\lwjgl\lwjgl\lwjgl\2.9.4-nightly-20150209\lwjgl-2.9.4-nightly-20150209.jar"
 set "SPECIAL_SOURCE=C:\Users\saroc\.gradle\caches\forge_gradle\maven_downloader\net\md-5\SpecialSource\1.8.3\SpecialSource-1.8.3-shaded.jar"
 set "MCP_SRG=C:\Users\saroc\.gradle\caches\minecraft\de\oceanlabs\mcp\mcp_snapshot\20171003\1.12.2\srgs\mcp-srg.srg"
 set "JAVA=C:\Users\saroc\.jdks\corretto-1.8.0_462\bin"
 set "MODS=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods"
+REM Resolve mod jars by pattern - the launcher updates these files and the
+REM version inside the name changes, so never hardcode them
+for /f "delims=" %%F in ('dir /b /o-d "%MODS%\mclib-*.jar" 2^>nul') do if not defined MCLIB_JAR set "MCLIB_JAR=%MODS%\%%F"
+for /f "delims=" %%F in ('dir /b /o-d "%MODS%\DynamX-*-all.jar" 2^>nul') do if not defined DYNAMX_JAR set "DYNAMX_JAR=%MODS%\%%F"
+for /f "delims=" %%F in ('dir /b /o-d "%MODS%\modularwarfare-*.jar" 2^>nul') do if not defined MWF_JAR set "MWF_JAR=%MODS%\%%F"
+for /f "delims=" %%F in ('dir /b /o-d "%MODS%\metamorph-*.jar" 2^>nul') do if not defined METAMORPH_JAR set "METAMORPH_JAR=%MODS%\%%F"
+echo === mclib:     %MCLIB_JAR%
+echo === DynamX:    %DYNAMX_JAR%
+echo === MWF:       %MWF_JAR%
+echo === Metamorph: %METAMORPH_JAR%
 set "ROOT=t:\MyModsCode\Saros Blockbuster Fix"
 set "ROOTFWD=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
@@ -35,6 +41,11 @@ set "SRCLIST=%WORK%\srclist.txt"
 (
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/render/layers/LayerActorArmor.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/tileentity/TileEntityModelRenderer.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/common/tileentity/TileEntityModel.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/common/tileentity/TileEntityModelSettings.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/model_block/GuiModelBlockPanel.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/tileentity/DetachedModelBlocks.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/RenderingHandler.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/VehicleControlAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/VehicleMountAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/AttackAction.java"

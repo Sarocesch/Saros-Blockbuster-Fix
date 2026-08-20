@@ -198,6 +198,9 @@ blockbuster.gui:
 
         light_level: Light value
         light_level_tooltip: Emits light with the given level, Minecraft's maximum light value is 15.
+
+        render_distance: Render distance
+        render_distance_tooltip: How far away in blocks this model block stays visible. 0 uses the Blockbuster config value. Any value above 0 also skips chunk culling, so big structures stay visible from far away. Only raise it on blocks that need it, and keep in mind that the chunk still has to be loaded by the client, so the server's view distance is the hard limit.
         look: Rotate at you
         
         entity: Entity

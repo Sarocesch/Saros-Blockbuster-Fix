@@ -31,6 +31,12 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
     private final ValueBoolean enableBlockHitbox = new ValueBoolean("enableBlockHitbox");
     private final ValueItemSlots slots = new ValueItemSlots("slots", 6);
 
+    /**
+     * Per block rendering range in blocks. 0 means "use the Blockbuster
+     * config value" ({@link mchorse.blockbuster.Blockbuster#actorRenderingRange}).
+     */
+    private final ValueFloat renderDistance = new ValueFloat("renderDistance");
+
     /* Entity rotations */
     private final ValueFloat rotateYawHead = new ValueFloat("rotateYawHead");
     private final ValueFloat rotatePitch = new ValueFloat("rotatePitch");
@@ -80,6 +86,21 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
         this.serializer.registerValue(this.renderAlways).serializeNBT("RenderAlways");
         this.serializer.registerValue(this.enableBlockHitbox).serializeNBT("Hitbox");
         this.serializer.registerValue(this.excludeResetPlayback).serializeNBT("ExcludeResetPlayback");
+        this.serializer.registerValue(this.renderDistance).serializeNBT("RenderDistance");
+    }
+
+    /**
+     * @return this block's rendering range in blocks, or 0 when the
+     * Blockbuster config value should be used instead.
+     */
+    public float getRenderDistance()
+    {
+        return this.renderDistance.get();
+    }
+
+    public void setRenderDistance(float renderDistance)
+    {
+        this.renderDistance.set(renderDistance < 0 ? 0 : renderDistance);
     }
 
     public boolean isBlockHitbox()
