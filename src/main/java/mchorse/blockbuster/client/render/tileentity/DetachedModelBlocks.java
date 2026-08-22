@@ -15,6 +15,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import org.lwjgl.opengl.GL11;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -344,6 +345,36 @@ public class DetachedModelBlocks
         double py = TileEntityRendererDispatcher.staticPlayerY;
         double pz = TileEntityRendererDispatcher.staticPlayerZ;
 
+        /*
+         * Remember the state this method was entered with.
+         *
+         * This runs from renderLastEntities(), which is ASM-called at the end of
+         * RenderGlobal.renderEntities - so it sits in the middle of somebody
+         * else's draw sequence, not at a clean boundary. Whatever is set here and
+         * left behind is inherited by the rest of the frame: the remaining world
+         * passes, the first person hand, the GUI, and on the next frame the
+         * vehicles again.
+         *
+         * That is not a theoretical concern. Setting standard item lighting and
+         * pinning the lightmap without ever putting them back is exactly what
+         * made DynamX vehicles render with wrong glass and unreadable license
+         * plates, and the first person hand flash bright for a frame, whenever a
+         * model block with a custom render distance was in the scene. Removing
+         * every Blockbuster block from the set made it go away (2026-08-21).
+         *
+         * The pinned lightmap is the nastier half: the value below comes from the
+         * MODEL BLOCK, not from whatever is drawn afterwards, and for an unloaded
+         * chunk it is deliberately forced to full brightness. So the leak makes
+         * the rest of the frame either too dark or far too bright, depending on
+         * where the block happens to stand.
+         */
+        boolean hadLighting = GL11.glIsEnabled(GL11.GL_LIGHTING);
+        float lastBrightnessX = OpenGlHelper.lastBrightnessX;
+        float lastBrightnessY = OpenGlHelper.lastBrightnessY;
+        boolean lit = false;
+
+        try
+        {
         for (Map.Entry<BlockPos, TileEntityModel> entry : blocks.entrySet())
         {
             BlockPos pos = entry.getKey();
@@ -379,14 +410,44 @@ public class DetachedModelBlocks
                 ? mc.world.getCombinedLight(pos, 0)
                 : (15 << 20 | 15 << 4);
 
-            RenderHelper.enableStandardItemLighting();
+            /* Only once, no matter how many blocks are drawn */
+            if (!lit)
+            {
+                RenderHelper.enableStandardItemLighting();
+                lit = true;
+            }
+
             OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, (float) (light % 65536), (float) (light / 65536));
             GlStateManager.color(1F, 1F, 1F, 1F);
 
             OptifineHelper.nextBlockEntity(copy);
             ClientProxy.modelRenderer.render(copy, dx, dy, dz, partialTicks, -1, 1F);
         }
+        }
+        finally
+        {
+            /*
+             * Put back exactly what was found, and do it in a finally so a
+             * throwing model renderer cannot poison the rest of the frame either.
+             *
+             * disableStandardItemLighting() is the counterpart of the call above;
+             * it also switches GL_LIGHTING off, so whether it has to come back on
+             * is decided by what was measured on entry rather than assumed.
+             */
+            if (lit)
+            {
+                RenderHelper.disableStandardItemLighting();
 
-        rendered.clear();
+                if (hadLighting)
+                {
+                    GlStateManager.enableLighting();
+                }
+
+                OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lastBrightnessX, lastBrightnessY);
+                GlStateManager.color(1F, 1F, 1F, 1F);
+            }
+
+            rendered.clear();
+        }
     }
 }
