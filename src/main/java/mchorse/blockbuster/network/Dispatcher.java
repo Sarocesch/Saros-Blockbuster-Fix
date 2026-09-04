@@ -212,6 +212,9 @@ public class Dispatcher
             /* MWF cosmetic fire replay — uses entity ID so EntityActor is found */
             register(PacketMWFFireReplay.class, ClientHandlerMWFFireReplay.class, Side.CLIENT);
 
+            /* Model block seat — the client decides, because Ctrl isn't visible server side */
+            register(mchorse.blockbuster.network.common.PacketSitOnModelBlock.class, mchorse.blockbuster.network.server.ServerHandlerSitOnModelBlock.class, Side.SERVER);
+
             CameraHandler.registerMessages();
         }
     };

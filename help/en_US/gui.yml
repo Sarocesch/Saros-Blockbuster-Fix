@@ -204,7 +204,7 @@ blockbuster.gui:
         cull_radius: Model radius
         cull_radius_tooltip: "WARNING - only touch this when your model is much bigger than its block. Half size in blocks of the box this block is culled by. 0 is off and Minecraft culls by the block cell, which is why a huge model disappears the moment its block leaves the screen. Set it to roughly half the size of your model and the model stays visible until the whole box is off screen, while anything truly behind you is still skipped. Too large a value means the model is drawn every frame even when nobody can see it, and that costs FPS."
         seat: Seat
-        seat_tooltip: Lets players sit on this block with SNEAK + right click. The seat itself is invisible, so the pose comes from whatever your model shows. Sneak again to get up.
+        seat_tooltip: Lets players sit on this block with a plain right click. The seat itself is invisible, so the pose comes from whatever your model shows. Sneak to get up. Note that CTRL + right click still opens this panel, and a seat block no longer lets you place blocks against it by right clicking.
         seat_offset: Seat position
         seat_offset_tooltip: "Where the seat sits, relative to the block: sideways, height, forwards. You can change these while sitting, so sit down and nudge them until the pose lines up with the chair in your model."
         seat_rotate: Lock sitting direction

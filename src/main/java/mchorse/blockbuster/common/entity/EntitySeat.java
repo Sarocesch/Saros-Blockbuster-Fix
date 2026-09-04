@@ -4,6 +4,8 @@ import mchorse.blockbuster.Blockbuster;
 import mchorse.blockbuster.common.block.BlockModel;
 import mchorse.blockbuster.common.tileentity.TileEntityModel;
 import mchorse.blockbuster.common.tileentity.TileEntityModelSettings;
+import mchorse.blockbuster.network.Dispatcher;
+import mchorse.blockbuster.network.common.PacketSitOnModelBlock;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
@@ -204,13 +206,46 @@ public class EntitySeat extends Entity
     }
 
     /**
-     * Hinsetzen per Schleichen + Rechtsklick.
+     * Setzt den Spieler auf den Sitz des Blocks. Legt ihn an, wenn es noch keinen gibt,
+     * und setzt niemanden auf einen bereits besetzten Sitz.
+     */
+    public static void sit(EntityPlayer player, BlockPos pos, TileEntityModelSettings settings)
+    {
+        final World world = player.world;
+        final List<EntitySeat> seats = world.getEntitiesWithinAABB(EntitySeat.class, new AxisAlignedBB(pos).grow(2.0D));
+
+        for (EntitySeat seat : seats)
+        {
+            if (seat.block.equals(pos))
+            {
+                if (!seat.isBeingRidden())
+                {
+                    player.startRiding(seat);
+                }
+
+                return;
+            }
+        }
+
+        final EntitySeat seat = new EntitySeat(world);
+
+        seat.setup(pos, settings);
+        world.spawnEntity(seat);
+        player.startRiding(seat);
+    }
+
+    /**
+     * Rechtsklick auf einen Modellblock, <b>rein client-seitig</b> ausgewertet.
+     *
+     * <p>Strg oeffnet das Kontrollfeld (macht {@code BlockModel#onBlockActivated}
+     * selbst), alles andere setzt hin. Diese Unterscheidung kann nur hier fallen: der
+     * Server sieht Strg nicht, deshalb geht das Hinsetzen als eigenes Paket raus statt
+     * dass der Server aus dem Interaktions-Event raet - sonst wuerde Strg + Rechtsklick
+     * das Kontrollfeld oeffnen UND hinsetzen.</p>
      *
      * <p>Warum ueber dieses Event und nicht ueber {@code onBlockActivated}: Minecraft
      * ruft die Blockaktivierung beim Schleichen gar nicht erst auf, wenn etwas in der
-     * Hand liegt - man wuerde stattdessen den Block platzieren. Das Event kommt vorher
-     * und laesst sich abbrechen, also funktioniert das Hinsetzen auch mit vollen
-     * Haenden.</p>
+     * Hand liegt. Das Event kommt vorher und laesst sich abbrechen.</p>
      */
     @Mod.EventBusSubscriber(modid = Blockbuster.MOD_ID)
     public static class Handler
@@ -235,14 +270,21 @@ public class EntitySeat extends Entity
         @SubscribeEvent
         public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event)
         {
-            final EntityPlayer player = event.getEntityPlayer();
+            final World world = event.getWorld();
 
-            if (player == null || !player.isSneaking() || player.isRiding())
+            /* Nur der Client entscheidet - der Server bekommt das Paket */
+            if (!world.isRemote)
             {
                 return;
             }
 
-            final World world = event.getWorld();
+            final EntityPlayer player = event.getEntityPlayer();
+
+            if (player == null || player.isRiding())
+            {
+                return;
+            }
+
             final BlockPos pos = event.getPos();
 
             if (!(world.getBlockState(pos).getBlock() instanceof BlockModel))
@@ -252,49 +294,22 @@ public class EntitySeat extends Entity
 
             final TileEntity te = world.getTileEntity(pos);
 
-            if (!(te instanceof TileEntityModel))
+            if (!(te instanceof TileEntityModel) || !((TileEntityModel) te).getSettings().isSeat())
             {
                 return;
             }
 
-            final TileEntityModelSettings settings = ((TileEntityModel) te).getSettings();
-
-            if (!settings.isSeat())
+            /* Strg gehoert dem Kontrollfeld, das oeffnet der Block selbst */
+            if (net.minecraft.client.gui.GuiScreen.isCtrlKeyDown())
             {
                 return;
             }
 
-            /* Auf beiden Seiten abbrechen, sonst platziert der Client kurz einen
-             * Geisterblock, den der Server danach wieder zurueckholt */
+            /* Abbrechen, damit kein Block in der Hand stattdessen gesetzt wird */
             event.setCanceled(true);
             event.setCancellationResult(EnumActionResult.SUCCESS);
 
-            if (world.isRemote)
-            {
-                return;
-            }
-
-            final List<EntitySeat> seats = world.getEntitiesWithinAABB(EntitySeat.class, new AxisAlignedBB(pos).grow(2.0D));
-
-            for (EntitySeat seat : seats)
-            {
-                if (seat.block.equals(pos))
-                {
-                    /* Schon besetzt - kein zweiter Spieler auf denselben Sitz */
-                    if (!seat.isBeingRidden())
-                    {
-                        player.startRiding(seat);
-                    }
-
-                    return;
-                }
-            }
-
-            final EntitySeat seat = new EntitySeat(world);
-
-            seat.setup(pos, settings);
-            world.spawnEntity(seat);
-            player.startRiding(seat);
+            Dispatcher.sendToServer(new PacketSitOnModelBlock(pos));
         }
     }
 }
