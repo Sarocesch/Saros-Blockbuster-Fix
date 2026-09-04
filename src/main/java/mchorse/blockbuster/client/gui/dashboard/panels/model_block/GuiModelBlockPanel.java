@@ -12,7 +12,6 @@ import mchorse.blockbuster.network.Dispatcher;
 import mchorse.blockbuster.network.common.PacketModifyModelBlock;
 import mchorse.blockbuster.client.gui.dashboard.panels.model_editor.utils.GuiThreeElement;
 import mchorse.mclib.client.gui.framework.elements.GuiElement;
-import mchorse.mclib.client.gui.framework.elements.GuiScrollElement;
 import mchorse.mclib.client.gui.framework.elements.buttons.GuiButtonElement;
 import mchorse.mclib.client.gui.framework.elements.buttons.GuiCirculateElement;
 import mchorse.mclib.client.gui.framework.elements.buttons.GuiIconElement;
@@ -148,11 +147,15 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
         this.order.flex().relative(this.trans.rx).set(40, -22, 40, 20);
 
         /* Buttons */
-        /* Scrollbar, weil die Spalte mit Sitz und Cullradius laenger geworden ist als
-         * das Panel bei kleiner GUI-Skalierung hoch ist */
-        GuiScrollElement column = new GuiScrollElement(mc);
+        /*
+         * Bewusst kein GuiScrollElement: subChildren ist mit noCulling() angelegt, ein
+         * Scroll-Element darin bekommt seinen Scissor-Bereich nicht und faellt auf Hoehe
+         * 0 zusammen - sichtbar als leeres Kaestchen am oberen Rand, waehrend der Rest
+         * des Panels verschwindet.
+         */
+        GuiElement column = new GuiElement(mc);
 
-        column.flex().relative(this).w(120).h(1F).column(5).vertical().stretch().scroll().height(20).padding(10);
+        column.flex().relative(this).w(120).column(5).vertical().stretch().height(20).padding(10);
 
         this.pickMorph = new GuiNestedEdit(mc, (editing) -> 
         {
@@ -233,7 +236,7 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
         this.seatYaw.limit(-180, 180);
         this.seatYaw.tooltip(IKey.lang("blockbuster.gui.model_block.seat_yaw_tooltip"), Direction.TOP);
 
-        column.add(this.pickMorph, look, this.shadow, this.global, this.enabled, this.excludeResetPlayback, this.renderLast, this.renderAlways, this.enableBlockHitbox, Elements.label(IKey.lang("blockbuster.gui.model_block.light_level")), this.lightLevel, Elements.label(IKey.lang("blockbuster.gui.model_block.render_distance")), this.renderDistance, Elements.label(IKey.lang("blockbuster.gui.model_block.cull_radius")), this.cullRadius, this.seat, Elements.label(IKey.lang("blockbuster.gui.model_block.seat_offset")), this.seatOffset, this.seatRotate, Elements.label(IKey.lang("blockbuster.gui.model_block.seat_yaw")), this.seatYaw);
+        column.add(this.pickMorph, look, this.shadow, this.global, this.enabled, this.excludeResetPlayback, this.renderLast, this.renderAlways, this.enableBlockHitbox, Elements.label(IKey.lang("blockbuster.gui.model_block.light_level")), this.lightLevel, Elements.label(IKey.lang("blockbuster.gui.model_block.render_distance")), this.renderDistance, Elements.label(IKey.lang("blockbuster.gui.model_block.cull_radius")), this.cullRadius, this.seat, Elements.label(IKey.lang("blockbuster.gui.model_block.seat_offset")), this.seatOffset, this.seatRotate, this.seatYaw);
         this.subChildren.add(column);
 
         /* Model blocks */
