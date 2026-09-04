@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -66,6 +67,10 @@ public class DetachedModelBlocks
     private static int scanTimer;
     private static float requiredFarPlane;
 
+    /** Camera frustum of the current frame, built on first use */
+    private static Frustum frustum;
+    private static boolean frustumBuilt;
+
     /**
      * The far plane the projection matrix needs so the tracked model blocks
      * don't get clipped away, or 0 when nothing needs one. Minecraft's own
@@ -76,6 +81,74 @@ public class DetachedModelBlocks
     public static float getRequiredFarPlane()
     {
         return requiredFarPlane;
+    }
+
+    /**
+     * A block only needs a detached copy when it was told to outlive its
+     * chunk or to be culled by something bigger than its own cell.
+     */
+    public static boolean isTracked(TileEntityModelSettings settings)
+    {
+        return settings.getRenderDistance() > 0 || settings.getCullRadius() > 0;
+    }
+
+    /**
+     * Distance cap of a model block in blocks. 0 in the settings means the
+     * client's own render distance is the cap.
+     */
+    public static double getMaxDistance(TileEntityModelSettings settings)
+    {
+        float distance = settings.getRenderDistance();
+
+        return distance > 0 ? distance : Minecraft.getMinecraft().gameSettings.renderDistanceChunks * 16.0;
+    }
+
+    /**
+     * Frustum check against the block's own cull box instead of the chunk
+     * cell it happens to sit in.
+     *
+     * A model block with a cull radius is a global renderer, which means
+     * Minecraft never frustum culls it - so a big model no longer vanishes
+     * when its block leaves the screen, but every one of them would also be
+     * built and drawn every single frame, including the ones behind the
+     * camera. This puts the culling back, just against a box the size of the
+     * model rather than the size of the block.
+     *
+     * A radius of 0 keeps the block out of here entirely, so nothing changes
+     * for blocks that don't use it.
+     */
+    public static boolean isInFrustum(BlockPos pos, TileEntityModelSettings settings)
+    {
+        float radius = settings.getCullRadius();
+
+        if (radius <= 0)
+        {
+            return true;
+        }
+
+        try
+        {
+            if (!frustumBuilt)
+            {
+                /* Built here and not in some event, because this runs while
+                 * the modelview matrix still is the camera's - which is what
+                 * the clipping planes are read from */
+                frustum = new Frustum();
+                frustum.setPosition(TileEntityRendererDispatcher.staticPlayerX, TileEntityRendererDispatcher.staticPlayerY, TileEntityRendererDispatcher.staticPlayerZ);
+                frustumBuilt = true;
+            }
+
+            double x = pos.getX() + 0.5D + settings.getX();
+            double y = pos.getY() + settings.getY();
+            double z = pos.getZ() + 0.5D + settings.getZ();
+
+            return frustum.isBoxInFrustum(x - radius, y - radius, z - radius, x + radius, y + radius, z + radius);
+        }
+        catch (Throwable t)
+        {
+            /* A broken cull check must never be the reason a model is gone */
+            return true;
+        }
     }
 
     /**
@@ -90,9 +163,9 @@ public class DetachedModelBlocks
 
         BlockPos pos = model.getPos();
 
-        if (model.getSettings().getRenderDistance() <= 0)
+        if (!isTracked(model.getSettings()))
         {
-            /* Distance was turned off again, drop the copy */
+            /* Both values were turned off again, drop the copy */
             untrack(pos);
 
             return;
@@ -195,7 +268,7 @@ public class DetachedModelBlocks
             {
                 TileEntityModel model = (TileEntityModel) te;
 
-                if (!model.detached && model.getSettings().getRenderDistance() > 0)
+                if (!model.detached && isTracked(model.getSettings()))
                 {
                     track(model);
                 }
@@ -254,9 +327,9 @@ public class DetachedModelBlocks
             Map.Entry<BlockPos, TileEntityModel> entry = it.next();
             BlockPos pos = entry.getKey();
             TileEntityModel copy = entry.getValue();
-            float distance = copy.getSettings().getRenderDistance();
+            TileEntityModelSettings settings = copy.getSettings();
 
-            if (distance <= 0)
+            if (!isTracked(settings))
             {
                 it.remove();
                 tags.remove(pos);
@@ -274,9 +347,15 @@ public class DetachedModelBlocks
                 continue;
             }
 
-            if (distance > far)
+            /* Only an explicit render distance moves the far plane. A cull
+             * radius on its own stays within what Minecraft already set up,
+             * so it doesn't cost any depth buffer precision. */
+            float distance = settings.getRenderDistance();
+            float needed = distance > 0 ? distance + settings.getCullRadius() : 0;
+
+            if (needed > far)
             {
-                far = distance;
+                far = needed;
             }
 
             /*
@@ -310,6 +389,7 @@ public class DetachedModelBlocks
     public static void resetFrame()
     {
         rendered.clear();
+        frustumBuilt = false;
     }
 
     /**
@@ -325,7 +405,7 @@ public class DetachedModelBlocks
     {
         if (blocks.isEmpty())
         {
-            rendered.clear();
+            resetFrame();
 
             return;
         }
@@ -334,7 +414,7 @@ public class DetachedModelBlocks
 
         if (mc.world == null || ClientProxy.modelRenderer == null)
         {
-            rendered.clear();
+            resetFrame();
 
             return;
         }
@@ -395,9 +475,18 @@ public class DetachedModelBlocks
             double dx = pos.getX() - px;
             double dy = pos.getY() - py;
             double dz = pos.getZ() - pz;
-            double distance = settings.getRenderDistance();
+
+            /* Measured to the cull box, not to the block, so a long model
+             * standing right in front of the player doesn't get dropped
+             * because its origin block is far away */
+            double distance = getMaxDistance(settings) + settings.getCullRadius();
 
             if (dx * dx + dy * dy + dz * dz > distance * distance)
+            {
+                continue;
+            }
+
+            if (!isInFrustum(pos, settings))
             {
                 continue;
             }
@@ -447,7 +536,7 @@ public class DetachedModelBlocks
                 GlStateManager.color(1F, 1F, 1F, 1F);
             }
 
-            rendered.clear();
+            resetFrame();
         }
     }
 }

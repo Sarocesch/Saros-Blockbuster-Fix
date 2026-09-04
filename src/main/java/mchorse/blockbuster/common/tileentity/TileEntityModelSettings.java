@@ -37,6 +37,13 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
      */
     private final ValueFloat renderDistance = new ValueFloat("renderDistance");
 
+    /**
+     * Half size of the box this model block is culled by, in blocks. 0 means
+     * the block cell itself, which is what Minecraft uses and the reason a
+     * big model vanishes as soon as its block leaves the screen.
+     */
+    private final ValueFloat cullRadius = new ValueFloat("cullRadius");
+
     /* Entity rotations */
     private final ValueFloat rotateYawHead = new ValueFloat("rotateYawHead");
     private final ValueFloat rotatePitch = new ValueFloat("rotatePitch");
@@ -87,6 +94,7 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
         this.serializer.registerValue(this.enableBlockHitbox).serializeNBT("Hitbox");
         this.serializer.registerValue(this.excludeResetPlayback).serializeNBT("ExcludeResetPlayback");
         this.serializer.registerValue(this.renderDistance).serializeNBT("RenderDistance");
+        this.serializer.registerValue(this.cullRadius).serializeNBT("CullRadius");
     }
 
     /**
@@ -101,6 +109,20 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
     public void setRenderDistance(float renderDistance)
     {
         this.renderDistance.set(renderDistance < 0 ? 0 : renderDistance);
+    }
+
+    /**
+     * @return half size of this block's cull box in blocks, or 0 when the
+     * block cell should be used, which is Minecraft's own behaviour.
+     */
+    public float getCullRadius()
+    {
+        return this.cullRadius.get();
+    }
+
+    public void setCullRadius(float cullRadius)
+    {
+        this.cullRadius.set(cullRadius < 0 ? 0 : cullRadius);
     }
 
     public boolean isBlockHitbox()

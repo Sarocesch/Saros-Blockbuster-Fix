@@ -201,6 +201,8 @@ blockbuster.gui:
 
         render_distance: Render distance
         render_distance_tooltip: How far away in blocks this model block stays visible. 0 uses the Blockbuster config value. Any value above 0 also skips chunk culling, so big structures stay visible from far away. Only raise it on blocks that need it, and keep in mind that the chunk still has to be loaded by the client, so the server's view distance is the hard limit.
+        cull_radius: Model radius
+        cull_radius_tooltip: "WARNING - only touch this when your model is much bigger than its block. Half size in blocks of the box this block is culled by. 0 is off and Minecraft culls by the block cell, which is why a huge model disappears the moment its block leaves the screen. Set it to roughly half the size of your model and the model stays visible until the whole box is off screen, while anything truly behind you is still skipped. Too large a value means the model is drawn every frame even when nobody can see it, and that costs FPS."
         look: Rotate at you
         
         entity: Entity

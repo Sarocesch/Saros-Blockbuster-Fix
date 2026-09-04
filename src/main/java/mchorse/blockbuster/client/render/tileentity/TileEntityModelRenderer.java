@@ -64,17 +64,20 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
          * A per block render distance (0 = off) overrides the default cap,
          * which is the player's render distance, so distant decorative blocks
          * don't burn GPU time when the player can't see them anyway. */
-        if (teSettings.isGlobal() || teSettings.getRenderDistance() > 0)
+        if (teSettings.isGlobal() || teSettings.getRenderDistance() > 0 || teSettings.getCullRadius() > 0)
         {
-            double maxDist = teSettings.getRenderDistance() > 0
-                ? teSettings.getRenderDistance()
-                : mc.gameSettings.renderDistanceChunks * 16.0;
+            double maxDist = DetachedModelBlocks.getMaxDistance(teSettings) + teSettings.getCullRadius();
 
             if (x * x + y * y + z * z > maxDist * maxDist) return;
 
+            /* Vanilla doesn't frustum cull a global renderer at all, so a
+             * block with a cull radius does it itself against a box the size
+             * of its model instead of the size of its block cell */
+            if (!DetachedModelBlocks.isInFrustum(te.getPos(), teSettings)) return;
+
             /* Tell the detached copy that this block is already covered
              * this frame, otherwise it would be drawn a second time */
-            if (!te.detached && teSettings.getRenderDistance() > 0)
+            if (!te.detached && DetachedModelBlocks.isTracked(teSettings))
             {
                 DetachedModelBlocks.markRendered(te.getPos());
             }
@@ -292,16 +295,18 @@ public class TileEntityModelRenderer extends TileEntitySpecialRenderer<TileEntit
     }
 
     /**
-     * A custom render distance implies global rendering, otherwise the block
-     * would still be dropped by chunk culling long before the distance is
-     * reached. Distance culling still happens in {@link #render}.
+     * A custom render distance or cull radius implies global rendering,
+     * otherwise the block would still be dropped by chunk culling long
+     * before the distance is reached, and a cull radius would never get a
+     * say in the first place. Distance and frustum culling both still
+     * happen in {@link #render}.
      */
     @Override
     public boolean isGlobalRenderer(TileEntityModel te)
     {
         TileEntityModelSettings teSettings = te.getSettings();
 
-        return teSettings.isGlobal() || teSettings.getRenderDistance() > 0;
+        return teSettings.isGlobal() || teSettings.getRenderDistance() > 0 || teSettings.getCullRadius() > 0;
     }
 
     public void transform(TileEntityModel te)
