@@ -203,6 +203,14 @@ blockbuster.gui:
         render_distance_tooltip: How far away in blocks this model block stays visible. 0 uses the Blockbuster config value. Any value above 0 also skips chunk culling, so big structures stay visible from far away. Only raise it on blocks that need it, and keep in mind that the chunk still has to be loaded by the client, so the server's view distance is the hard limit.
         cull_radius: Model radius
         cull_radius_tooltip: "WARNING - only touch this when your model is much bigger than its block. Half size in blocks of the box this block is culled by. 0 is off and Minecraft culls by the block cell, which is why a huge model disappears the moment its block leaves the screen. Set it to roughly half the size of your model and the model stays visible until the whole box is off screen, while anything truly behind you is still skipped. Too large a value means the model is drawn every frame even when nobody can see it, and that costs FPS."
+        seat: Seat
+        seat_tooltip: Lets players sit on this block with SNEAK + right click. The seat itself is invisible, so the pose comes from whatever your model shows. Sneak again to get up.
+        seat_offset: Seat position
+        seat_offset_tooltip: "Where the seat sits, relative to the block: sideways, height, forwards. You can change these while sitting, so sit down and nudge them until the pose lines up with the chair in your model."
+        seat_rotate: Lock sitting direction
+        seat_rotate_tooltip: Holds the legs and upper body of whoever sits down at the angle below. The head can still turn, same as in a boat. Off means the player keeps facing wherever they were facing.
+        seat_yaw: Sitting direction
+        seat_yaw_tooltip: The direction the legs point when "Lock sitting direction" is on. -180 to 180, 0 is south, same as the F3 screen.
         look: Rotate at you
         
         entity: Entity

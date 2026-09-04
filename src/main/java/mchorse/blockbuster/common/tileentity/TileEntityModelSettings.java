@@ -44,6 +44,15 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
      */
     private final ValueFloat cullRadius = new ValueFloat("cullRadius");
 
+    /* Unsichtbarer Sitz: Schleichen + Rechtsklick setzt den Spieler auf den Block */
+    private final ValueBoolean seat = new ValueBoolean("seat");
+    private final ValueFloat seatX = new ValueFloat("seatX");
+    private final ValueFloat seatY = new ValueFloat("seatY");
+    private final ValueFloat seatZ = new ValueFloat("seatZ");
+    /** Haelt Beine und Oberkoerper des Sitzenden auf {@link #seatYaw} fest. */
+    private final ValueBoolean seatRotate = new ValueBoolean("seatRotate");
+    private final ValueFloat seatYaw = new ValueFloat("seatYaw");
+
     /* Entity rotations */
     private final ValueFloat rotateYawHead = new ValueFloat("rotateYawHead");
     private final ValueFloat rotatePitch = new ValueFloat("rotatePitch");
@@ -95,6 +104,12 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
         this.serializer.registerValue(this.excludeResetPlayback).serializeNBT("ExcludeResetPlayback");
         this.serializer.registerValue(this.renderDistance).serializeNBT("RenderDistance");
         this.serializer.registerValue(this.cullRadius).serializeNBT("CullRadius");
+        this.serializer.registerValue(this.seat).serializeNBT("Seat");
+        this.serializer.registerValue(this.seatX).serializeNBT("SeatX");
+        this.serializer.registerValue(this.seatY).serializeNBT("SeatY");
+        this.serializer.registerValue(this.seatZ).serializeNBT("SeatZ");
+        this.serializer.registerValue(this.seatRotate).serializeNBT("SeatRotate");
+        this.serializer.registerValue(this.seatYaw).serializeNBT("SeatYaw");
     }
 
     /**
@@ -123,6 +138,60 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
     public void setCullRadius(float cullRadius)
     {
         this.cullRadius.set(cullRadius < 0 ? 0 : cullRadius);
+    }
+
+    /* Sitz */
+
+    public boolean isSeat()
+    {
+        return this.seat.get();
+    }
+
+    public void setSeat(boolean seat)
+    {
+        this.seat.set(seat);
+    }
+
+    public float getSeatX()
+    {
+        return this.seatX.get();
+    }
+
+    public float getSeatY()
+    {
+        return this.seatY.get();
+    }
+
+    public float getSeatZ()
+    {
+        return this.seatZ.get();
+    }
+
+    public void setSeatOffset(float x, float y, float z)
+    {
+        this.seatX.set(x);
+        this.seatY.set(y);
+        this.seatZ.set(z);
+    }
+
+    public boolean isSeatRotate()
+    {
+        return this.seatRotate.get();
+    }
+
+    public void setSeatRotate(boolean rotate)
+    {
+        this.seatRotate.set(rotate);
+    }
+
+    public float getSeatYaw()
+    {
+        return this.seatYaw.get();
+    }
+
+    public void setSeatYaw(float yaw)
+    {
+        this.seatYaw.set(yaw);
     }
 
     public boolean isBlockHitbox()

@@ -200,7 +200,18 @@ public class BlockModel extends Block implements ITileEntityProvider
     @Override
     public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ)
     {
-        if (worldIn.isRemote && !EntityUtils.isAdventureMode(playerIn))
+        /*
+         * Das Kontrollfeld haengt jetzt an Strg, damit ein normaler Rechtsklick auf einem
+         * fertig eingerichteten Set nichts mehr aufreisst - beim Dreh greift man staendig
+         * versehentlich einen Modellblock an. Schleichen ist ausgenommen, das ist das
+         * Hinsetzen (siehe EntitySeat).
+         *
+         * Strg laesst sich nur auf dem Client abfragen; das ist hier kein Problem, weil
+         * das Kontrollfeld ohnehin rein client-seitig geoeffnet wird. Die Abfrage steht
+         * hinter isRemote, der Server fasst die Klasse also nie an.
+         */
+        if (worldIn.isRemote && !EntityUtils.isAdventureMode(playerIn)
+            && net.minecraft.client.gui.GuiScreen.isCtrlKeyDown() && !playerIn.isSneaking())
         {
             PermissionUtils.hasPermission(playerIn, BlockbusterPermissions.editModelBlock, (bool) ->
             {
