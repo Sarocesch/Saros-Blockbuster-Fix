@@ -77,6 +77,7 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
     private GuiThreeElement seatOffset;
     private GuiToggleElement seatRotate;
     private GuiTrackpadElement seatYaw;
+    private GuiThreeElement seatExit;
 
     private GuiModelBlockList list;
     private GuiElement subChildren;
@@ -155,7 +156,9 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
          */
         GuiElement column = new GuiElement(mc);
 
-        column.flex().relative(this).w(120).column(5).vertical().stretch().height(20).padding(10);
+        /* 18 statt 20 Pixel je Zeile: mit Cullradius und Sitz ist die Spalte auf 22
+         * Zeilen gewachsen und lief bei GUI-Skalierung 2 unten aus dem Panel. */
+        column.flex().relative(this).w(120).column(5).vertical().stretch().height(18).padding(10);
 
         this.pickMorph = new GuiNestedEdit(mc, (editing) -> 
         {
@@ -236,7 +239,12 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
         this.seatYaw.limit(-180, 180);
         this.seatYaw.tooltip(IKey.lang("blockbuster.gui.model_block.seat_yaw_tooltip"), Direction.TOP);
 
-        column.add(this.pickMorph, look, this.shadow, this.global, this.enabled, this.excludeResetPlayback, this.renderLast, this.renderAlways, this.enableBlockHitbox, Elements.label(IKey.lang("blockbuster.gui.model_block.light_level")), this.lightLevel, Elements.label(IKey.lang("blockbuster.gui.model_block.render_distance")), this.renderDistance, Elements.label(IKey.lang("blockbuster.gui.model_block.cull_radius")), this.cullRadius, this.seat, Elements.label(IKey.lang("blockbuster.gui.model_block.seat_offset")), this.seatOffset, this.seatRotate, this.seatYaw);
+        this.seatExit = new GuiThreeElement(mc, (values) -> this.model.getSettings().setSeatExitOffset(
+            values[0].floatValue(), values[1].floatValue(), values[2].floatValue()));
+        this.seatExit.setLimit(-64, 64, false);
+        this.seatExit.tooltip(IKey.lang("blockbuster.gui.model_block.seat_exit_tooltip"), Direction.TOP);
+
+        column.add(this.pickMorph, look, this.shadow, this.global, this.enabled, this.excludeResetPlayback, this.renderLast, this.renderAlways, this.enableBlockHitbox, Elements.label(IKey.lang("blockbuster.gui.model_block.light_level")), this.lightLevel, Elements.label(IKey.lang("blockbuster.gui.model_block.render_distance")), this.renderDistance, Elements.label(IKey.lang("blockbuster.gui.model_block.cull_radius")), this.cullRadius, this.seat, Elements.label(IKey.lang("blockbuster.gui.model_block.seat_offset")), this.seatOffset, this.seatRotate, this.seatYaw, Elements.label(IKey.lang("blockbuster.gui.model_block.seat_exit")), this.seatExit);
         this.subChildren.add(column);
 
         /* Model blocks */
@@ -499,6 +507,7 @@ public class GuiModelBlockPanel extends GuiBlockbusterPanel
             this.seatOffset.setValues(this.model.getSettings().getSeatX(), this.model.getSettings().getSeatY(), this.model.getSettings().getSeatZ());
             this.seatRotate.toggled(this.model.getSettings().isSeatRotate());
             this.seatYaw.setValue(this.model.getSettings().getSeatYaw());
+            this.seatExit.setValues(this.model.getSettings().getSeatExitX(), this.model.getSettings().getSeatExitY(), this.model.getSettings().getSeatExitZ());
 
             for (int i = 0; i < this.slots.length; i++)
             {

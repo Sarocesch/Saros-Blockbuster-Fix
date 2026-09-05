@@ -209,6 +209,8 @@ blockbuster.gui:
         seat_offset_tooltip: "Where the seat sits, relative to the block: sideways, height, forwards. You can change these while sitting, so sit down and nudge them until the pose lines up with the chair in your model."
         seat_rotate: Lock sitting direction
         seat_rotate_tooltip: Holds the legs and upper body of whoever sits down at the angle below. The head can still turn, same as in a boat. Off means the player keeps facing wherever they were facing.
+        seat_exit: Exit position
+        seat_exit_tooltip: Where the player is put down when they stand up, relative to the block. All three at 0 lets Minecraft pick the spot the way it normally does, which on a seat floating in the air or on top of a model tends to drop you into the floor.
         seat_yaw: Sitting direction
         seat_yaw_tooltip: The direction the legs point when "Lock sitting direction" is on. -180 to 180, 0 is south, same as the F3 screen.
         look: Rotate at you

@@ -52,6 +52,14 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
     /** Haelt Beine und Oberkoerper des Sitzenden auf {@link #seatYaw} fest. */
     private final ValueBoolean seatRotate = new ValueBoolean("seatRotate");
     private final ValueFloat seatYaw = new ValueFloat("seatYaw");
+    /**
+     * Wo der Spieler beim Aufstehen landet, relativ zum Block. Alles auf 0 heisst
+     * "wie Minecraft es sonst macht" - ein Ausstieg genau auf dem Sitzpunkt waere
+     * ohnehin sinnlos, deshalb taugt 0/0/0 hier als Aus-Schalter.
+     */
+    private final ValueFloat seatExitX = new ValueFloat("seatExitX");
+    private final ValueFloat seatExitY = new ValueFloat("seatExitY");
+    private final ValueFloat seatExitZ = new ValueFloat("seatExitZ");
 
     /* Entity rotations */
     private final ValueFloat rotateYawHead = new ValueFloat("rotateYawHead");
@@ -110,6 +118,9 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
         this.serializer.registerValue(this.seatZ).serializeNBT("SeatZ");
         this.serializer.registerValue(this.seatRotate).serializeNBT("SeatRotate");
         this.serializer.registerValue(this.seatYaw).serializeNBT("SeatYaw");
+        this.serializer.registerValue(this.seatExitX).serializeNBT("SeatExitX");
+        this.serializer.registerValue(this.seatExitY).serializeNBT("SeatExitY");
+        this.serializer.registerValue(this.seatExitZ).serializeNBT("SeatExitZ");
     }
 
     /**
@@ -192,6 +203,34 @@ public class TileEntityModelSettings implements IByteBufSerializable, INBTSerial
     public void setSeatYaw(float yaw)
     {
         this.seatYaw.set(yaw);
+    }
+
+    public float getSeatExitX()
+    {
+        return this.seatExitX.get();
+    }
+
+    public float getSeatExitY()
+    {
+        return this.seatExitY.get();
+    }
+
+    public float getSeatExitZ()
+    {
+        return this.seatExitZ.get();
+    }
+
+    public void setSeatExitOffset(float x, float y, float z)
+    {
+        this.seatExitX.set(x);
+        this.seatExitY.set(y);
+        this.seatExitZ.set(z);
+    }
+
+    /** Alles auf 0 heisst: Minecraft sucht sich den Ausstieg wie sonst auch. */
+    public boolean hasSeatExit()
+    {
+        return this.seatExitX.get() != 0 || this.seatExitY.get() != 0 || this.seatExitZ.get() != 0;
     }
 
     public boolean isBlockHitbox()
