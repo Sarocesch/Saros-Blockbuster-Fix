@@ -36,6 +36,8 @@ public class BlockbusterSection extends MorphSection
 {
     public MorphCategory extra;
     public MorphCategory structures;
+    /** Fahrzeug-Hologramme aus DynamX; leer, wenn die Mod nicht da ist. */
+    public MorphCategory holos;
     public Map<String, MorphCategory> models = new HashMap<String, MorphCategory>();
 
     private boolean alex;
@@ -48,6 +50,7 @@ public class BlockbusterSection extends MorphSection
 
         this.extra = new MorphCategory(this, "blockbuster_extra");
         this.structures = new MorphCategory(this, "blockbuster_structures");
+        this.holos = new MorphCategory(this, "blockbuster_holos");
 
         /* Adding some default morphs which don't need to get reloaded */
         ImageMorph image = new ImageMorph();
@@ -266,6 +269,20 @@ public class BlockbusterSection extends MorphSection
         this.add(this.extra);
         this.add(this.structures);
 
+        /*
+         * Fahrzeuge erst hier einsammeln, nicht im Konstruktor: die DynamX-Inhaltspakete
+         * sind beim Modstart noch nicht geladen, die Liste waere dann immer leer.
+         */
+        if (world != null && world.isRemote)
+        {
+            this.reloadHolos();
+        }
+
+        if (!this.holos.getMorphs().isEmpty())
+        {
+            this.add(this.holos);
+        }
+
         /* Add models categories */
         for (MorphCategory category : this.models.values())
         {
@@ -277,6 +294,45 @@ public class BlockbusterSection extends MorphSection
     public void reset()
     {
         this.structures.clear();
+    }
+
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    private void reloadHolos()
+    {
+        this.holos.clear();
+
+        if (!mchorse.blockbuster_pack.client.HoloRenderer.available())
+        {
+            return;
+        }
+
+        for (String id : mchorse.blockbuster_pack.client.HoloRenderer.vehicles())
+        {
+            final int at = id.lastIndexOf('@');
+
+            if (at < 0)
+            {
+                continue;
+            }
+
+            final String vehicle = id.substring(0, at);
+            int meta = 0;
+
+            try
+            {
+                meta = Integer.parseInt(id.substring(at + 1));
+            }
+            catch (NumberFormatException ignored)
+            {}
+
+            final HoloMorph morph = new HoloMorph(vehicle, meta);
+
+            /* Der Anzeigename ist das, wonach im Menue gesucht wird */
+            morph.displayName = mchorse.blockbuster_pack.client.HoloRenderer.label(vehicle, meta);
+            this.holos.add(morph);
+        }
+
+        this.holos.sort();
     }
 
     public static class BlockbusterCategory extends MorphCategory

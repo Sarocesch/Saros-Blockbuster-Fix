@@ -89,6 +89,10 @@ public class BlockbusterFactory implements IMorphFactory
         {
             morph = new BetterLightsMorph();
         }
+        else if (name.equals("holo"))
+        {
+            morph = new HoloMorph();
+        }
         else
         {
             /* Custom model morphs */
@@ -106,6 +110,6 @@ public class BlockbusterFactory implements IMorphFactory
     @Override
     public boolean hasMorph(String morph)
     {
-        return morph.startsWith("blockbuster.") || morph.equals("sequencer") || morph.equals("structure") || morph.equals("particle") || morph.equals("snowstorm") || morph.equals("tracker") || morph.equals("light") || morph.equals("betterLights");
+        return morph.startsWith("blockbuster.") || morph.equals("sequencer") || morph.equals("structure") || morph.equals("particle") || morph.equals("snowstorm") || morph.equals("tracker") || morph.equals("light") || morph.equals("betterLights") || morph.equals("holo");
     }
 }
