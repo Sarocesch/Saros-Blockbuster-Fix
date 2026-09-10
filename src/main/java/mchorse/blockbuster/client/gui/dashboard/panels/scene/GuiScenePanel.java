@@ -98,6 +98,8 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     public GuiToggleElement fake;
     public GuiToggleElement teleportBack;
     public GuiToggleElement renderLast;
+    public GuiToggleElement freezeAtEnd;
+    public GuiToggleElement hideOuterLayer;
     public GuiTrackpadElement health;
     public GuiTrackpadElement foodLevel;
     public GuiTrackpadElement totalExperience;
@@ -155,6 +157,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.stopCommand = new GuiTextElement(mc, 10000, (str) -> this.location.getScene().stopCommand = str);
         this.loops = new GuiToggleElement(mc, IKey.lang("blockbuster.gui.director.loops"), false, (b) -> this.location.getScene().loops = b.isToggled());
 
+
         this.audio = new GuiStringListElement(mc, (value) -> this.location.getScene().setAudio(value.get(0).equals(this.noneAudioTrack.get()) ? "" : value.get(0)));
         this.audio.background().tooltip(IKey.lang("blockbuster.gui.director.audio_tooltip"), Direction.RIGHT);
         this.audioShift = new GuiTrackpadElement(mc, (value) -> this.location.getScene().setAudioShift(value.intValue()));
@@ -199,6 +202,11 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.teleportBack.tooltip(IKey.lang("blockbuster.gui.director.tp_back_tooltip"), Direction.RIGHT);
         this.renderLast = new GuiToggleElement(mc, IKey.lang("blockbuster.gui.director.render_last"), false, (b) -> this.replay.renderLast = b.isToggled());
         this.renderLast.tooltip(IKey.lang("blockbuster.gui.director.render_last_tooltip"), Direction.RIGHT);
+        /* Literal label: the build patches classes into the jar, not the lang assets. */
+        this.freezeAtEnd = new GuiToggleElement(mc, IKey.str("Freeze at end"), false, (b) -> this.replay.freezeAtEnd = b.isToggled());
+        this.freezeAtEnd.tooltip(IKey.str("This actor and the vehicle it drove stay where the scene ended. Cleared when the scene is triggered again."), Direction.RIGHT);
+        this.hideOuterLayer = new GuiToggleElement(mc, IKey.str("Hide outer skin layer"), false, (b) -> this.replay.hideOuterLayer = b.isToggled());
+        this.hideOuterLayer.tooltip(IKey.str("Hides the model's second skin layer (bodywear, armwear, legwear, hat) so worn clothing does not clip through it."), Direction.RIGHT);
         this.health = new GuiTrackpadElement(mc, (value) -> this.replay.health = value.floatValue());
         this.health.limit(0);
         this.foodLevel = new GuiTrackpadElement(mc, (value) -> this.replay.foodLevel = value.intValue());
@@ -212,7 +220,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         left.add(Elements.label(IKey.lang("blockbuster.gui.director.health")).color(0xcccccc), this.health,
                  Elements.label(IKey.lang("blockbuster.gui.director.food_level")).color(0xcccccc), this.foodLevel,
                  Elements.label(IKey.lang("blockbuster.gui.director.total_experience")).color(0xcccccc), this.totalExperience,
-                 this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast);
+                 this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast, this.freezeAtEnd, this.hideOuterLayer);
         this.replays.add(this.selector, this.replayEditor);
 
         /* Toggle view button */
@@ -544,6 +552,8 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.fake.toggled(this.replay.fake);
         this.teleportBack.toggled(this.replay.teleportBack);
         this.renderLast.toggled(this.replay.renderLast);
+        this.freezeAtEnd.toggled(this.replay.freezeAtEnd);
+        this.hideOuterLayer.toggled(this.replay.hideOuterLayer);
         this.health.setValue(this.replay.health);
         this.foodLevel.setValue(this.replay.foodLevel);
         this.totalExperience.setValue(this.replay.totalExperience);

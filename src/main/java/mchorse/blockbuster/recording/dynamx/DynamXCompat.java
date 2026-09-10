@@ -172,6 +172,186 @@ public final class DynamXCompat
         return false;
     }
 
+    /* --- Simulation holder --------------------------------------------------
+     *
+     * When a PLAYER mounts a DynamX vehicle, DynamX hands physics authority to
+     * that player's client (SimulationHolder.DRIVER / DRIVER_SP) and calls
+     * BasicEngineModule.resetControls(), which wipes everything except the
+     * engine and handbrake bits. A Blockbuster fake player has no client to
+     * send controls, so the car kept its engine running and never moved.
+     *
+     * Forcing the holder back to SERVER_SP keeps the physics on the server,
+     * where the replayed VehicleControlAction actually reaches it. */
+
+    private static boolean simResolved = false;
+    private static boolean simAvailable = false;
+    private static Method methodGetSynchronizer;
+    private static Method methodSetSimulationHolder;
+    private static Object simulationHolderServerSP;
+
+    private static boolean initSimulation()
+    {
+        if (simResolved) return simAvailable;
+        simResolved = true;
+
+        try
+        {
+            Class<?> classPhysicsEntity = Class.forName("fr.dynamx.common.entities.PhysicsEntity");
+            methodGetSynchronizer = classPhysicsEntity.getMethod("getSynchronizer");
+
+            Class<?> classSynchronizer = Class.forName("fr.dynamx.common.network.sync.PhysicsEntitySynchronizer");
+            Class<?> classSimulationHolder = Class.forName("fr.dynamx.api.network.sync.SimulationHolder");
+
+            methodSetSimulationHolder = classSynchronizer.getMethod("setSimulationHolder",
+                    classSimulationHolder, net.minecraft.entity.player.EntityPlayer.class);
+
+            for (Object constant : classSimulationHolder.getEnumConstants())
+            {
+                if ("SERVER_SP".equals(((Enum<?>) constant).name()))
+                {
+                    simulationHolderServerSP = constant;
+                    break;
+                }
+            }
+
+            simAvailable = simulationHolderServerSP != null;
+        }
+        catch (Throwable t)
+        {
+            simAvailable = false;
+            System.out.println("[Blockbuster] DynamX simulation holder unavailable: " + t);
+        }
+
+        return simAvailable;
+    }
+
+    /**
+     * Keep a vehicle's physics on the server while a replay drives it.
+     *
+     * Only meaningful for fake players - a real player driving must keep
+     * authority on their own client, or they lose control of the car.
+     */
+    public static boolean forceServerSimulation(Entity vehicle)
+    {
+        if (!isAvailable() || vehicle == null || !isVehicle(vehicle)) return false;
+        if (!initSimulation()) return false;
+
+        try
+        {
+            Object synchronizer = methodGetSynchronizer.invoke(vehicle);
+
+            if (synchronizer == null) return false;
+
+            methodSetSimulationHolder.invoke(synchronizer, simulationHolderServerSP, null);
+            System.out.println("[Blockbuster] DynamX: vehicle physics forced to SERVER_SP for replay");
+
+            return true;
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] DynamX: couldn't force server simulation: " + t);
+        }
+
+        return false;
+    }
+
+    /* --- BasicsAddon (siren, beacons, head lights, turn signals) -------------
+     *
+     * Resolved separately from DynamX itself: the addon is optional, and a
+     * missing addon must not disable vehicle recording as a whole. */
+
+    private static boolean basicsResolved = false;
+    private static boolean basicsAvailable = false;
+    private static Class<?> classBasicsAddonModule;
+    private static Field fieldBasicsState;
+    private static Method methodVariableGet;
+    private static Method methodVariableSet;
+
+    private static boolean initBasics()
+    {
+        if (basicsResolved) return basicsAvailable;
+        basicsResolved = true;
+
+        try
+        {
+            classBasicsAddonModule = Class.forName("fr.dynamx.addons.basics.common.modules.BasicsAddonModule");
+
+            /* The complete light/siren state is a single synchronized int.
+             * BasicsAddonModule's public setters (setSirenOn, setBeaconsOn,
+             * setHeadLightsOn, the turn signals, ...) all rewrite that same
+             * field, so reading and writing it directly captures every one of
+             * them in one value. serializeState() would be nicer but is
+             * private. */
+            fieldBasicsState = classBasicsAddonModule.getDeclaredField("state");
+            fieldBasicsState.setAccessible(true);
+
+            Class<?> classEntityVariable = Class.forName("fr.dynamx.api.network.sync.EntityVariable");
+            methodVariableGet = classEntityVariable.getMethod("get");
+            /* set(T) erases to set(Object) in the bytecode */
+            methodVariableSet = classEntityVariable.getMethod("set", Object.class);
+
+            basicsAvailable = true;
+        }
+        catch (Throwable t)
+        {
+            basicsAvailable = false;
+        }
+
+        return basicsAvailable;
+    }
+
+    private static Object getBasicsStateVariable(Entity vehicle) throws Exception
+    {
+        Object module = methodGetModuleByType.invoke(vehicle, classBasicsAddonModule);
+
+        return module == null ? null : fieldBasicsState.get(module);
+    }
+
+    /**
+     * Read a vehicle's BasicsAddon state bitmask (siren, beacons, head lights,
+     * DRL, turn signals, lock). Returns -1 when the addon or the module is
+     * absent.
+     */
+    public static int getVehicleBasicsState(Entity vehicle)
+    {
+        if (!isAvailable() || !initBasics() || vehicle == null) return -1;
+
+        try
+        {
+            Object variable = getBasicsStateVariable(vehicle);
+            if (variable == null) return -1;
+
+            Object value = methodVariableGet.invoke(variable);
+            if (value instanceof Integer) return (Integer) value;
+        }
+        catch (Throwable ignored) {}
+
+        return -1;
+    }
+
+    /**
+     * Restore a vehicle's BasicsAddon state bitmask. The variable is
+     * synchronized to spectators by DynamX, so writing it server side is what
+     * makes every client see the siren and the lights.
+     */
+    public static boolean setVehicleBasicsState(Entity vehicle, int state)
+    {
+        if (!isAvailable() || !initBasics() || vehicle == null) return false;
+
+        try
+        {
+            Object variable = getBasicsStateVariable(vehicle);
+            if (variable == null) return false;
+
+            methodVariableSet.invoke(variable, Integer.valueOf(state));
+
+            return true;
+        }
+        catch (Throwable ignored) {}
+
+        return false;
+    }
+
     /**
      * Get the list of BasePartSeat instances for a vehicle via PackInfo.
      * Returns null if vehicle has no pack info or is not a DynamX vehicle.

@@ -51,6 +51,11 @@ public class MWFFireAction extends Action
          * getPlayerEntityByUUID which returns null for non-player entities. */
         Dispatcher.sendToTracked(actor,
                 new PacketMWFFireReplay(actor.getEntityId(), this.internalName, this.fireTickDelay));
+
+        /* The animation packet only moves the model. MWF plays the shot from
+         * FireManager, which an actor never runs, so the sound has to be issued
+         * here - server side, exactly like MWF does it. */
+        MWFCompat.playFireSound(actor, this.internalName, actor.getHeldItemMainhand());
     }
 
     @Override

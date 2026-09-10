@@ -349,17 +349,15 @@ public class RecordPlayer
             this.actor.setEntityInvulnerable(false);
         }
 
-        /* Reset any DynamX vehicles referenced by this record so stopping
-         * playback leaves them where recording started (not where they ended up). */
-        if (!this.actor.world.isRemote)
-        {
-            /* Dismount actor first so the vehicle is free to be teleported */
-            if (this.actor.isRiding())
-            {
-                this.actor.dismountRidingEntity();
-            }
-            VehicleMountAction.resetVehicles(this.record, this.actor.world);
-        }
+        /* Vehicles are deliberately left untouched when playback stops: the car
+         * stays where the scene ended instead of vanishing. The old code reset
+         * and then killed it here, which is why the vehicle disappeared the
+         * moment an animation finished.
+         *
+         * Starting playback still clears it - resetVehicles runs at tick 0 in
+         * startPlaying, and VehicleMountAction.apply respawns the vehicle from
+         * its NBT snapshot at the recorded start pose. So a re-trigger gets a
+         * clean car, and a finished scene keeps its car standing. */
     }
 
     public void applyFrame(int tick, EntityLivingBase target, boolean force)

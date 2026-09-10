@@ -105,7 +105,23 @@ public class VehicleMountAction extends MountingAction
             }
 
             boolean mounted = DynamXCompat.mountSeat(vehicle, actor, this.seatIndex);
-            if (mounted) return;
+
+            if (mounted)
+            {
+                /* A fake player driving hands DynamX's physics authority to a
+                 * client that does not exist, so the replayed controls never
+                 * arrive and the car stays put with its engine running. Keep
+                 * the simulation on the server for those.
+                 *
+                 * Deliberately NOT done for a real target player - they must
+                 * keep authority on their own client or they lose control. */
+                if (isFakePlayer(actor))
+                {
+                    DynamXCompat.forceServerSimulation(vehicle);
+                }
+
+                return;
+            }
         }
 
         /* Fallback to vanilla mount if vehicle is not a DynamX entity */
@@ -287,5 +303,25 @@ public class VehicleMountAction extends MountingAction
         {
             tag.setTag("Snapshot", this.vehicleSnapshot);
         }
+    }
+
+    /**
+     * Is this actor one of Blockbuster's fake players (as opposed to a real
+     * player being replayed)?
+     */
+    private static boolean isFakePlayer(EntityLivingBase actor)
+    {
+        if (!(actor instanceof net.minecraft.entity.player.EntityPlayer)) return false;
+
+        try
+        {
+            mchorse.blockbuster.capabilities.recording.IRecording recording =
+                    mchorse.blockbuster.capabilities.recording.Recording.get((net.minecraft.entity.player.EntityPlayer) actor);
+
+            return recording != null && recording.isFakePlayer();
+        }
+        catch (Throwable ignored) {}
+
+        return false;
     }
 }

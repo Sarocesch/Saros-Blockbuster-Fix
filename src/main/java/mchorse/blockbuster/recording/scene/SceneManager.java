@@ -149,6 +149,8 @@ public class SceneManager
 
             if (replay != null)
             {
+                warnAboutCustomModel(replay, player);
+
                 CommonProxy.manager.record(replay.id, player, Mode.ACTIONS, replay.teleportBack, true, offset, () ->
                 {
                     if (!CommonProxy.manager.recorders.containsKey(player))
@@ -312,5 +314,31 @@ public class SceneManager
     public List<String> sceneFiles()
     {
         return Utils.serverFiles("blockbuster/scenes");
+    }
+
+    /**
+     * Warn before recording onto a Blockbuster custom model.
+     *
+     * ModularWarfare and DynamX render weapons, clothing and poses through the
+     * player renderer, which a custom model actor never goes through.
+     *
+     * Deliberately does NOT suggest enabling "Fake player": a fake player with
+     * a custom morph renders through ModelCustom again, so it gains nothing.
+     * Only a fake player WITHOUT a custom model gets the native rendering, and
+     * that one cannot use a URL skin.
+     *
+     * Plain text on purpose - the build patches class files into the jar, not
+     * the language assets, so a translation key would show up raw.
+     */
+    private static void warnAboutCustomModel(Replay replay, EntityPlayerMP player)
+    {
+        if (!(replay.morph instanceof mchorse.blockbuster_pack.morphs.CustomMorph)) return;
+
+        player.sendMessage(new net.minecraft.util.text.TextComponentString(
+            net.minecraft.util.text.TextFormatting.GOLD
+            + "[Blockbuster] Custom model in use: ModularWarfare weapons and clothing, "
+            + "DynamX clothing and pose mods render through the player renderer and will "
+            + "not look exactly like they do on you. Turning on \"Fake player\" does NOT "
+            + "help while a custom model is set."));
     }
 }

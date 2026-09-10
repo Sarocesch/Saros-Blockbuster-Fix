@@ -2,6 +2,7 @@ package mchorse.blockbuster.recording.dynamx;
 
 import mchorse.blockbuster.CommonProxy;
 import mchorse.blockbuster.recording.actions.Action;
+import mchorse.blockbuster.recording.actions.VehicleBasicsAction;
 import mchorse.blockbuster.recording.actions.VehicleControlAction;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
@@ -34,6 +35,13 @@ public class DynamXVehicleHandler
     private final Map<UUID, Integer> lastControls = new HashMap<UUID, Integer>();
 
     /**
+     * Last-known BasicsAddon state bitmask per recording player (siren,
+     * beacons, head lights, turn signals). Tracked separately from the
+     * engine controls because it is a separate synchronized variable.
+     */
+    private final Map<UUID, Integer> lastBasics = new HashMap<UUID, Integer>();
+
+    /**
      * Called each server tick for each player currently being recorded.
      * If the player is driving a DynamX vehicle and its engine controls have
      * changed since the last check, a {@link VehicleControlAction} is added
@@ -51,6 +59,7 @@ public class DynamXVehicleHandler
         {
             /* Not in a DynamX vehicle anymore — forget the last state. */
             this.lastControls.remove(id);
+            this.lastBasics.remove(id);
             return;
         }
 
@@ -67,6 +76,33 @@ public class DynamXVehicleHandler
             }
             this.lastControls.put(id, controls);
         }
+
+        this.tickBasics(player, ridden, id);
+    }
+
+    /**
+     * Capture siren / beacons / head lights / turn signals, which live in the
+     * BasicsAddon module rather than in the engine's control bitmask.
+     */
+    private void tickBasics(EntityPlayer player, Entity ridden, UUID id)
+    {
+        int state = DynamXCompat.getVehicleBasicsState(ridden);
+
+        if (state == -1) return;
+
+        Integer previous = this.lastBasics.get(id);
+
+        if (previous == null || previous.intValue() != state)
+        {
+            List<Action> events = CommonProxy.manager.getActions(player);
+
+            if (events != null)
+            {
+                events.add(new VehicleBasicsAction(state));
+            }
+
+            this.lastBasics.put(id, state);
+        }
     }
 
     /**
@@ -76,10 +112,12 @@ public class DynamXVehicleHandler
     public void clearPlayer(UUID playerId)
     {
         this.lastControls.remove(playerId);
+        this.lastBasics.remove(playerId);
     }
 
     public void clearAll()
     {
         this.lastControls.clear();
+        this.lastBasics.clear();
     }
 }

@@ -230,6 +230,30 @@ public class ModelCustom extends ModelBiped
             }
         }
 
+        /* ModularWarfare decides the arm pose for its own items in
+         * ClientRenderHooks.renderThirdPose, which runs on RenderLivingEvent.Pre
+         * - BEFORE this method. Everything it set would be overwritten here, so
+         * an actor ended up with ArmPose.ITEM and the gun hanging straight down.
+         * Mirror MWF's decision instead of clobbering it. */
+        int holdKind = mchorse.blockbuster.recording.mwf.MWFCompat.getHoldKind(rightItem);
+
+        if (holdKind == mchorse.blockbuster.recording.mwf.MWFCompat.HOLD_GUN)
+        {
+            if (mchorse.blockbuster.recording.mwf.MWFCompat.isAimingClient(entity))
+            {
+                right = ModelBiped.ArmPose.BOW_AND_ARROW;
+            }
+            else
+            {
+                right = ModelBiped.ArmPose.BLOCK;
+                left = ModelBiped.ArmPose.BLOCK;
+            }
+        }
+        else if (holdKind == mchorse.blockbuster.recording.mwf.MWFCompat.HOLD_OTHER)
+        {
+            right = ModelBiped.ArmPose.BLOCK;
+        }
+
         this.rightArmPose = right;
         this.leftArmPose = left;
     }
@@ -241,6 +265,13 @@ public class ModelCustom extends ModelBiped
     @Override
     public void setRotationAngles(float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, float scaleFactor, Entity entityIn)
     {
+        /* ModularMovements poses players through MWF's own model class,
+         * which an actor never goes through. Its state map is keyed by entity
+         * id and setRotationAngles takes a plain ModelBiped, so the same pose
+         * can be applied here - lean, sit, crawl and roll included.
+         * No-op unless a replay put a pose on this entity. */
+        mchorse.blockbuster.recording.mwf.MWFCompat.applyMovementAngles(this, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scaleFactor, entityIn);
+
         if (entityIn instanceof EntityLivingBase)
         {
             this.setHands((EntityLivingBase) entityIn);

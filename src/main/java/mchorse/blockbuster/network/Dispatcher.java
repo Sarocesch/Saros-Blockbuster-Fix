@@ -215,6 +215,16 @@ public class Dispatcher
             /* Model block seat — the client decides, because Ctrl isn't visible server side */
             register(mchorse.blockbuster.network.common.PacketSitOnModelBlock.class, mchorse.blockbuster.network.server.ServerHandlerSitOnModelBlock.class, Side.SERVER);
 
+            /* MWF vest on actors - MWF's own sync resolves by player UUID and
+             * cannot find an EntityActor, so the stack travels by entity ID */
+            register(mchorse.blockbuster.network.common.mwf.PacketMWFExtraSlot.class, mchorse.blockbuster.network.client.mwf.ClientHandlerMWFExtraSlot.class, Side.CLIENT);
+
+            /* MWF aiming on actors - same UUID problem as the vest */
+            register(mchorse.blockbuster.network.common.mwf.PacketMWFAim.class, mchorse.blockbuster.network.client.mwf.ClientHandlerMWFAim.class, Side.CLIENT);
+
+            /* ModularMovements pose on actors - lean, sit, crawl, roll */
+            register(mchorse.blockbuster.network.common.mwf.PacketMMState.class, mchorse.blockbuster.network.client.mwf.ClientHandlerMMState.class, Side.CLIENT);
+
             CameraHandler.registerMessages();
         }
     };

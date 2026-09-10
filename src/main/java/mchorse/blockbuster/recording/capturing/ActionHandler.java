@@ -17,6 +17,10 @@ import mchorse.blockbuster.recording.RecordPlayer;
 import mchorse.blockbuster.recording.RecordRecorder;
 import mchorse.blockbuster.recording.RecordUtils;
 import mchorse.blockbuster.recording.actions.Action;
+import mchorse.blockbuster.recording.actions.MMStateAction;
+import mchorse.blockbuster.recording.actions.MWFAimAction;
+import mchorse.blockbuster.recording.actions.MWFExtraSlotAction;
+import mchorse.blockbuster.recording.mwf.MWFCompat;
 import mchorse.blockbuster.recording.actions.AttackAction;
 import mchorse.blockbuster.recording.actions.BreakBlockAction;
 import mchorse.blockbuster.recording.actions.ChatAction;
@@ -36,6 +40,7 @@ import mchorse.blockbuster.recording.dynamx.DynamXCompat;
 import mchorse.blockbuster_pack.morphs.StructureMorph;
 import mchorse.metamorph.api.events.MorphActionEvent;
 import mchorse.metamorph.api.events.MorphEvent;
+import net.minecraft.item.ItemStack;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.command.ICommandSender;
@@ -77,7 +82,10 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Event handler for recording purposes.
@@ -103,6 +111,19 @@ public class ActionHandler
      */
     private final mchorse.blockbuster.recording.dynamx.DynamXVehicleHandler dynamxHandler
             = new mchorse.blockbuster.recording.dynamx.DynamXVehicleHandler();
+
+    /**
+     * Last-known ModularWarfare vest per recording player. MWF keeps vests in
+     * its own extra slot capability rather than in a vanilla armor slot, so
+     * EquipAction never sees them and they have to be polled.
+     */
+    private final Map<UUID, ItemStack> lastVests = new HashMap<UUID, ItemStack>();
+
+    /** Last-known aiming state per recording player. */
+    private final Map<UUID, Boolean> lastAiming = new HashMap<UUID, Boolean>();
+
+    /** Last-known ModularMovements pose code per recording player. */
+    private final Map<UUID, Integer> lastMovement = new HashMap<UUID, Integer>();
 
     /**
      * Tracks whether we've attempted to register soft-dependency event handlers.
@@ -502,6 +523,9 @@ public class ActionHandler
         {
             CommonProxy.manager.abort(player);
             this.dynamxHandler.clearPlayer(player.getUniqueID());
+            this.lastVests.remove(player.getUniqueID());
+            this.lastAiming.remove(player.getUniqueID());
+            this.lastMovement.remove(player.getUniqueID());
         }
     }
 
@@ -612,6 +636,9 @@ public class ActionHandler
                  * VehicleControlAction emitted lands on the same tick as the
                  * frame showing the new state. No-op when DynamX is absent. */
                 this.dynamxHandler.tickRecordingPlayer(player);
+                this.tickMWFVest(player);
+                this.tickMWFAim(player);
+                this.tickMovementState(player);
                 recorder.record(player);
             }
         }
@@ -628,5 +655,100 @@ public class ActionHandler
                 record.stopPlaying();
             }
         }
+    }
+
+    /**
+     * Capture the ModularWarfare vest a recording player is wearing.
+     *
+     * Emitted delta-compressed: vests change rarely, so this adds at most a
+     * couple of actions to a recording. Wrapped defensively because this runs
+     * inside the recording tick - a failure here must never abort a recording.
+     */
+    private void tickMWFVest(EntityPlayer player)
+    {
+        try
+        {
+            if (!MWFCompat.isAvailable()) return;
+
+            UUID id = player.getUniqueID();
+            ItemStack current = MWFCompat.getExtraSlotStack(player, MWFCompat.SLOT_VEST);
+            ItemStack previous = this.lastVests.get(id);
+
+            if (previous != null && ItemStack.areItemStacksEqual(previous, current)) return;
+            if (previous == null && current.isEmpty()) return;
+
+            List<Action> actions = CommonProxy.manager.getActions(player);
+
+            if (actions != null)
+            {
+                actions.add(new MWFExtraSlotAction(MWFCompat.SLOT_VEST, current));
+            }
+
+            this.lastVests.put(id, current.copy());
+        }
+        catch (Throwable ignored)
+        {}
+    }
+
+    /**
+     * Capture whether a recording player is aiming down sights, so the actor
+     * raises the weapon the same way in the replay. Delta-compressed.
+     */
+    private void tickMWFAim(EntityPlayer player)
+    {
+        try
+        {
+            if (!MWFCompat.isAvailable()) return;
+
+            UUID id = player.getUniqueID();
+            boolean aiming = MWFCompat.isAiming(player);
+            Boolean previous = this.lastAiming.get(id);
+
+            if (previous != null && previous.booleanValue() == aiming) return;
+            if (previous == null && !aiming) return;
+
+            List<Action> actions = CommonProxy.manager.getActions(player);
+
+            if (actions != null)
+            {
+                actions.add(new MWFAimAction(aiming));
+            }
+
+            this.lastAiming.put(id, Boolean.valueOf(aiming));
+        }
+        catch (Throwable ignored)
+        {}
+    }
+
+    /**
+     * Capture the recording player's ModularMovements pose - leaning, sitting,
+     * crawling, rolling. One int, delta-compressed like the vehicle state.
+     */
+    private void tickMovementState(EntityPlayer player)
+    {
+        try
+        {
+            if (!MWFCompat.isAvailable()) return;
+
+            UUID id = player.getUniqueID();
+            int code = MWFCompat.getMovementState(player);
+
+            if (code == 0) return;
+
+            Integer previous = this.lastMovement.get(id);
+
+            if (previous != null && previous.intValue() == code) return;
+
+            List<Action> actions = CommonProxy.manager.getActions(player);
+
+            if (actions != null)
+            {
+                actions.add(new MMStateAction(code));
+            }
+
+            this.lastMovement.put(id, Integer.valueOf(code));
+        }
+        catch (Throwable ignored)
+        {}
     }
 }

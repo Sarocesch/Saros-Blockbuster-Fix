@@ -202,5 +202,9 @@ public class ActionRegistry
         register("vehicle_mount", VehicleMountAction.class);
         register("vehicle_control", VehicleControlAction.class);
         register("mwf_fire", MWFFireAction.class);
+        register("vehicle_basics", VehicleBasicsAction.class);
+        register("mwf_extra_slot", MWFExtraSlotAction.class);
+        register("mwf_aim", MWFAimAction.class);
+        register("mm_state", MMStateAction.class);
     }
 }

@@ -43,6 +43,18 @@ public class Replay
     public boolean fake = false;
     public float health = 20F;
     public boolean renderLast = false;
+
+    /**
+     * Keep this actor and the vehicle it drove standing where the scene
+     * ended. The cleanup moves to the next trigger of the scene.
+     */
+    public boolean freezeAtEnd = false;
+
+    /**
+     * Hide the model's outer skin layer (bodywear, armwear, legwear, outer).
+     * Useful when the actor wears clothing that the second layer clips through.
+     */
+    public boolean hideOuterLayer = false;
     public int foodLevel = 20;
     public int totalExperience = 0;
 
@@ -149,6 +161,8 @@ public class Replay
         tag.setBoolean("Enabled", this.enabled);
         tag.setBoolean("Fake", this.fake);
         if (!this.teleportBack) tag.setBoolean("TP", this.teleportBack);
+        if (this.freezeAtEnd) tag.setBoolean("FreezeAtEnd", this.freezeAtEnd);
+        if (this.hideOuterLayer) tag.setBoolean("HideOuterLayer", this.hideOuterLayer);
         if (this.health != 20) tag.setFloat("Health", this.health);
         if (this.foodLevel != 20) tag.setInteger("FoodLevel", this.foodLevel);
         if (this.totalExperience != 0) tag.setInteger("TotalExperience", this.totalExperience);
@@ -171,6 +185,8 @@ public class Replay
 
         if (tag.hasKey("Enabled")) this.enabled = tag.getBoolean("Enabled");
         if (tag.hasKey("TP")) this.teleportBack = tag.getBoolean("TP");
+        if (tag.hasKey("FreezeAtEnd")) this.freezeAtEnd = tag.getBoolean("FreezeAtEnd");
+        if (tag.hasKey("HideOuterLayer")) this.hideOuterLayer = tag.getBoolean("HideOuterLayer");
         if (tag.hasKey("Health")) this.health = tag.getFloat("Health");
         if (tag.hasKey("RenderLast")) this.renderLast = tag.getBoolean("RenderLast");
         if (tag.hasKey("PlaybackXPFoodLevel")) this.playBackXPFood = tag.getBoolean("PlaybackXPFoodLevel");
@@ -191,6 +207,8 @@ public class Replay
         buf.writeBoolean(this.enabled);
         buf.writeBoolean(this.fake);
         buf.writeBoolean(this.teleportBack);
+        buf.writeBoolean(this.freezeAtEnd);
+        buf.writeBoolean(this.hideOuterLayer);
         buf.writeBoolean(this.renderLast);
         buf.writeFloat(this.health);
         buf.writeInt(this.foodLevel);
@@ -211,6 +229,8 @@ public class Replay
         this.enabled = buf.readBoolean();
         this.fake = buf.readBoolean();
         this.teleportBack = buf.readBoolean();
+        this.freezeAtEnd = buf.readBoolean();
+        this.hideOuterLayer = buf.readBoolean();
         this.renderLast = buf.readBoolean();
         this.health = buf.readFloat();
         this.foodLevel = buf.readInt();
@@ -253,6 +273,8 @@ public class Replay
         replay.enabled = this.enabled;
         replay.fake = this.fake;
         replay.teleportBack = this.teleportBack;
+        replay.freezeAtEnd = this.freezeAtEnd;
+        replay.hideOuterLayer = this.hideOuterLayer;
         replay.renderLast = this.renderLast;
         replay.health = this.health;
         replay.foodLevel = this.foodLevel;

@@ -103,6 +103,13 @@ public class Scene
      */
     public boolean loops;
 
+    /**
+     * Actors left standing by the previous run while {@link #freezeAtEnd} is on.
+     * collectActors() always builds fresh actors, so without this list a second
+     * trigger would stack a new set on top of the frozen ones.
+     */
+    private final java.util.List<EntityLivingBase> frozenActors = new java.util.ArrayList<EntityLivingBase>();
+
     private AudioHandler audioHandler = new AudioHandler();
 
     /* Runtime properties */
@@ -410,6 +417,24 @@ public class Scene
      * The same thing as play, but don't play the actor that is passed
      * in the arguments (because he might be recorded by the player)
      */
+
+    /**
+     * Remove the actors a previous frozen run left standing. Called when the
+     * scene is triggered again, which is where the cleanup was moved to.
+     */
+    private void clearFrozenActors()
+    {
+        for (EntityLivingBase actor : this.frozenActors)
+        {
+            if (actor != null && !actor.isDead)
+            {
+                actor.setDead();
+            }
+        }
+
+        this.frozenActors.clear();
+    }
+
     public void startPlayback(int tick)
     {
         if (this.getWorld().isRemote || this.playing || this.replays.isEmpty())
@@ -427,6 +452,7 @@ public class Scene
             }
         }
 
+        this.clearFrozenActors();
         this.collectActors(null);
 
         EntityLivingBase firstActor = null;
@@ -472,6 +498,10 @@ public class Scene
             return;
         }
 
+        /* Same cleanup as the other startPlayback overload - without it a
+         * scene triggered through this path stacks a fresh set of actors on
+         * top of the frozen ones from the previous run. */
+        this.clearFrozenActors();
         this.collectActors(this.getByFile(exception));
 
         for (Map.Entry<Replay, RecordPlayer> entry : this.actors.entrySet())
@@ -578,8 +608,18 @@ public class Scene
         {
             RecordPlayer actor = entry.getValue();
 
-            actor.kill = true;
+            /* Freeze keeps fake actors standing at their last frame. Real
+             * players are never frozen - they get their own state restored
+             * below and must stay controllable. */
+            boolean freeze = entry.getKey().freezeAtEnd && !actor.realPlayer && actor.actor != null;
+
+            actor.kill = !freeze;
             actor.stopPlaying();
+
+            if (freeze)
+            {
+                this.frozenActors.add(actor.actor);
+            }
         }
 
         CommonProxy.damage.restoreDamageControl(this, this.getWorld());
