@@ -125,6 +125,9 @@ public class ActionHandler
     /** Last-known ModularMovements pose code per recording player. */
     private final Map<UUID, Integer> lastMovement = new HashMap<UUID, Integer>();
 
+    /** Zu welcher Aufnahme der Delta-Zustand oben gehoert. */
+    private final Map<UUID, Object> lastRecorder = new HashMap<UUID, Object>();
+
     /**
      * Tracks whether we've attempted to register soft-dependency event handlers.
      * Done lazily on first world load so Forge mod init has finished and the
@@ -526,6 +529,7 @@ public class ActionHandler
             this.lastVests.remove(player.getUniqueID());
             this.lastAiming.remove(player.getUniqueID());
             this.lastMovement.remove(player.getUniqueID());
+            this.lastRecorder.remove(player.getUniqueID());
         }
     }
 
@@ -635,6 +639,19 @@ public class ActionHandler
                 /* Poll DynamX vehicle controls BEFORE frame capture so any
                  * VehicleControlAction emitted lands on the same tick as the
                  * frame showing the new state. No-op when DynamX is absent. */
+                /* Der Delta-Zustand gehoert zu EINER Aufnahme. Ohne dieses
+                 * Zuruecksetzen fehlten Weste, Zielen und Bewegungspose in jeder
+                 * Aufnahme AUSSER der ersten nach dem Einloggen: der Wert war
+                 * gegenueber der vorherigen Aufnahme unveraendert, also wurde
+                 * nichts geschrieben. Bisher raeumte das nur der Logout auf. */
+                if (this.lastRecorder.get(player.getUniqueID()) != recorder)
+                {
+                    this.lastRecorder.put(player.getUniqueID(), recorder);
+                    this.lastVests.remove(player.getUniqueID());
+                    this.lastAiming.remove(player.getUniqueID());
+                    this.lastMovement.remove(player.getUniqueID());
+                }
+
                 this.dynamxHandler.tickRecordingPlayer(player);
                 this.tickMWFVest(player);
                 this.tickMWFAim(player);
@@ -696,6 +713,11 @@ public class ActionHandler
             if (actions != null)
             {
                 actions.add(new MWFExtraSlotAction(MWFCompat.SLOT_VEST, current));
+                System.out.println("[Blockbuster] Weste in die Aufnahme geschrieben: " + describe(current));
+            }
+            else
+            {
+                System.out.println("[Blockbuster] Weste NICHT geschrieben: keine Aktionsliste fuer diesen Tick");
             }
 
             this.lastVests.put(id, current.copy());

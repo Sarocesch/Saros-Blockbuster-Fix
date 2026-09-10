@@ -673,6 +673,8 @@ public class RenderingHandler
     private static Class<?> classVehicleHud;
     private static int hudGrace;
 
+    private static int hudCheckTimer;
+
     private static void closeStrayVehicleHud()
     {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
@@ -681,6 +683,16 @@ public class RenderingHandler
         {
             return;
         }
+
+        /* Nur jede halbe Sekunde nachsehen. Jeden Tick durch die offenen GUIs zu
+         * gehen kostet Bilder und bringt nichts - ein haengender Tacho hat es
+         * nicht eilig. */
+        if (--hudCheckTimer > 0)
+        {
+            return;
+        }
+
+        hudCheckTimer = 10;
 
         if (mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mc.player.getRidingEntity()))
         {
@@ -707,7 +719,7 @@ public class RenderingHandler
         {
             /* closeHudGui meldet true, wenn es eines geschlossen hat - so lange
              * wiederholen, bis auch gestapelte weg sind. */
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 3; i++)
             {
                 Object closed = methodCloseHud.invoke(null, classVehicleHud);
 
