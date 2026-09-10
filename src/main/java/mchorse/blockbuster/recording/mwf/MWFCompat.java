@@ -656,6 +656,10 @@ public final class MWFCompat
     private static boolean slotsAvailable = false;
     private static Object extraCapability;
     private static boolean slotReadFailed;
+    private static boolean containerLookupFailed;
+    private static Field fieldEntityCaps;
+    private static Field fieldDispatcherCaps;
+    private static Field fieldProviderContainer;
 
     /** Slot index of the body vest, matching MWF's own RenderLayerBody. */
     public static final int SLOT_VEST = 1;
@@ -703,17 +707,12 @@ public final class MWFCompat
     public static String describeExtraSlots(Entity entity)
     {
         if (entity == null) return "<keine Entity>";
-        if (!initSlots()) return "<Capability nicht aufloesbar>";
 
         try
         {
-            Capability<?> capability = (Capability<?>) extraCapability;
+            Object handler = findExtraContainer(entity);
 
-            if (!entity.hasCapability(capability, null)) return "<Entity hat die Capability nicht>";
-
-            Object handler = entity.getCapability(capability, null);
-
-            if (handler == null) return "<Handler ist null>";
+            if (handler == null) return "<kein ExtraContainer an dieser Entity>";
 
             Method slotCount = handler.getClass().getMethod("getSlots");
             Method getStack = handler.getClass().getMethod("getStackInSlot", int.class);
@@ -742,17 +741,74 @@ public final class MWFCompat
      * {@link ItemStack#EMPTY} when MWF is absent, the entity has no extra slots
      * or the slot is empty.
      */
+    /**
+     * Der ExtraContainer eines Spielers, ohne den Umweg ueber
+     * CapabilityExtra.CAPABILITY.
+     *
+     * <p>Dieses Feld ist {@code static final} und wird von Forge per
+     * {@code @CapabilityInject} befuellt. Reflektiv gelesen kam dort dauerhaft
+     * null zurueck, waehrend MWF selbst den echten Wert sieht - deshalb war die
+     * Weste nie lesbar und wurde nie aufgezeichnet. Statt darauf zu bauen,
+     * laufen wir die Capability-Provider der Entity ab und nehmen den
+     * ExtraContainerProvider direkt.</p>
+     */
+    private static Object findExtraContainer(Entity entity)
+    {
+        try
+        {
+            if (fieldEntityCaps == null)
+            {
+                fieldEntityCaps = Entity.class.getDeclaredField("capabilities");
+                fieldEntityCaps.setAccessible(true);
+            }
+
+            Object dispatcher = fieldEntityCaps.get(entity);
+
+            if (dispatcher == null) return null;
+
+            if (fieldDispatcherCaps == null)
+            {
+                fieldDispatcherCaps = dispatcher.getClass().getDeclaredField("caps");
+                fieldDispatcherCaps.setAccessible(true);
+            }
+
+            Object[] providers = (Object[]) fieldDispatcherCaps.get(dispatcher);
+
+            if (providers == null) return null;
+
+            for (Object provider : providers)
+            {
+                if (provider == null) continue;
+                if (!"ExtraContainerProvider".equals(provider.getClass().getSimpleName())) continue;
+
+                if (fieldProviderContainer == null || fieldProviderContainer.getDeclaringClass() != provider.getClass())
+                {
+                    fieldProviderContainer = provider.getClass().getDeclaredField("container");
+                    fieldProviderContainer.setAccessible(true);
+                }
+
+                return fieldProviderContainer.get(provider);
+            }
+        }
+        catch (Throwable t)
+        {
+            if (!containerLookupFailed)
+            {
+                containerLookupFailed = true;
+                System.out.println("[Blockbuster] MWF Extra-Container nicht erreichbar: " + t);
+            }
+        }
+
+        return null;
+    }
+
     public static ItemStack getExtraSlotStack(Entity entity, int slot)
     {
-        if (entity == null || !initSlots()) return ItemStack.EMPTY;
+        if (entity == null) return ItemStack.EMPTY;
 
         try
         {
-            Capability<?> capability = (Capability<?>) extraCapability;
-
-            if (!entity.hasCapability(capability, null)) return ItemStack.EMPTY;
-
-            Object handler = entity.getCapability(capability, null);
+            Object handler = findExtraContainer(entity);
 
             if (handler == null) return ItemStack.EMPTY;
 

@@ -96,10 +96,16 @@ public class VehicleMountAction extends MountingAction
 
         if (carriesRealPlayer(vehicle))
         {
-            /* Ein echter Spieler sitzt drin - der wird nicht hinausgesetzt. */
-            System.out.println("[Blockbuster] Fahrzeug " + this.target + " nicht bestiegen: echter Spieler sitzt drin");
-
-            return;
+            /* Ein echter Spieler sitzt noch drin - der wird herausgesetzt,
+             * sonst sitzen zwei auf demselben Platz. */
+            for (Entity passenger : new java.util.ArrayList<Entity>(vehicle.getPassengers()))
+            {
+                if (passenger instanceof net.minecraft.entity.player.EntityPlayerMP)
+                {
+                    passenger.dismountRidingEntity();
+                    System.out.println("[Blockbuster] Fahrzeug " + this.target + ": Spieler " + passenger.getName() + " ausgestiegen, Actor uebernimmt");
+                }
+            }
         }
 
         if (DynamXCompat.isVehicle(vehicle))
@@ -256,35 +262,34 @@ public class VehicleMountAction extends MountingAction
 
                 Entity existing = EntityUtils.entityByUUID(world, mount.target);
 
-                if (carriesRealPlayer(existing))
-                {
-                    /* Da sitzt ein echter Spieler drin. Nicht anfassen - weder
-                     * hinaussetzen noch loeschen. Eine Aufnahme darf niemandem
-                     * das Auto unter dem Hintern wegnehmen. */
-                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + " uebersprungen: echter Spieler sitzt drin");
-                    continue;
-                }
-
                 if (existing != null && !existing.isDead)
                 {
-                    /* Vorhandenes Exemplar an Ort und Stelle zuruecksetzen.
-                     *
-                     * NICHT toeten und mit derselben UUID neu spawnen: beide
-                     * lagen dann im selben Tick in der Welt, und beim Aufraeumen
-                     * des alten flog der UUID-Eintrag des neuen mit weg. Danach
-                     * fand die Mount-Aktion das Auto nicht mehr - daher das
-                     * unregelmaessige Verhalten bei mehrfachem Starten. */
-                    existing.removePassengers();
-                    mount.teleportVehicle(existing);
-                    DynamXCompat.setVehicleControls(existing, 0);
-                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": vorhandenes zurueckgesetzt (id=" + existing.getEntityId() + ")");
+                    /* Erst alle heraussetzen - auch einen echten Spieler.
+                     * Jemanden in einem Fahrzeug zu lassen, das gleich
+                     * verschwindet, laesst ihn in der Luft haengen. */
+                    for (Entity passenger : new java.util.ArrayList<Entity>(existing.getPassengers()))
+                    {
+                        passenger.dismountRidingEntity();
 
-                    continue;
+                        if (passenger instanceof net.minecraft.entity.player.EntityPlayerMP)
+                        {
+                            System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": Spieler " + passenger.getName() + " vor dem Loeschen ausgestiegen");
+                        }
+                    }
+
+                    existing.setDead();
+
+                    /* Sofort und vollstaendig aus der Welt nehmen, nicht erst am
+                     * Tick-Ende. Sonst liegt gleich darauf ein zweites Exemplar
+                     * mit derselben UUID in der Welt, und beim Aufraeumen des
+                     * alten faellt der UUID-Eintrag des neuen mit weg - dann
+                     * findet die Mount-Aktion das Auto nicht mehr. */
+                    world.removeEntityDangerously(existing);
+                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": altes entfernt (id=" + existing.getEntityId() + ")");
                 }
 
-                /* Nicht vorhanden: frisch an der aufgezeichneten Startpose
-                 * hinstellen, damit das Auto schon dasteht, wenn die Animation
-                 * beginnt, statt erst beim Einsteigen aufzutauchen. */
+                /* Frisches Exemplar an der aufgezeichneten Startpose, damit das
+                 * Auto schon dasteht, wenn die Animation beginnt. */
                 Entity vehicle = mount.ensureVehicle(world);
 
                 if (DynamXCompat.isVehicle(vehicle))
