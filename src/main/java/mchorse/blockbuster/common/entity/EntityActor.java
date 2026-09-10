@@ -339,30 +339,12 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
 
         if (this.world.isRemote && this.newPosRotationIncrements > 0)
         {
-            if (this.playback != null && this.playback.playing)
-            {
-                /* Waehrend der Wiedergabe sendet DynamX (oder der Server) jede
-                 * Physik-Position als Netzwerk-Paket. Diese Pakete setzen
-                 * interpTargetX/Y/Z auf die Physik-Bahn, nicht auf die Aufnahme-
-                 * Bahn. Wuerden wir hier interpolieren, schiebt sich der Actor
-                 * jedes Tick ein Stueck von der aufgezeichneten Position weg.
-                 * Ergebnis: An Kurven faehrt er gegen Schilder, die in der
-                 * Aufnahme nicht getroffen wurden.
-                 *
-                 * Loesung: Zaehlerwert auf 0 setzen und die Netzwerkposition
-                 * ignorieren. Frame.apply() hat bereits die korrekte Position
-                 * gesetzt - die bleibt jetzt erhalten. */
-                this.newPosRotationIncrements = 0;
-            }
-            else
-            {
-                double d0 = this.posX + (this.interpTargetX - this.posX) / this.newPosRotationIncrements;
-                double d1 = this.posY + (this.interpTargetY - this.posY) / this.newPosRotationIncrements;
-                double d2 = this.posZ + (this.interpTargetZ - this.posZ) / this.newPosRotationIncrements;
+            double d0 = this.posX + (this.interpTargetX - this.posX) / this.newPosRotationIncrements;
+            double d1 = this.posY + (this.interpTargetY - this.posY) / this.newPosRotationIncrements;
+            double d2 = this.posZ + (this.interpTargetZ - this.posZ) / this.newPosRotationIncrements;
 
-                this.newPosRotationIncrements--;
-                this.setPosition(d0, d1, d2);
-            }
+            this.newPosRotationIncrements--;
+            this.setPosition(d0, d1, d2);
         }
         else if (!this.isServerWorld())
         {
