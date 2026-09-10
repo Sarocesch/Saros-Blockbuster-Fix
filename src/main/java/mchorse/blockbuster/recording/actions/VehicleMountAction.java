@@ -191,6 +191,25 @@ public class VehicleMountAction extends MountingAction
     }
 
     /**
+     * Stellt ein frisches Fahrzeug an die aufgezeichnete Startpose.
+     */
+    private static void spawnAtStart(VehicleMountAction mount, World world)
+    {
+        Entity vehicle = mount.ensureVehicle(world);
+
+        if (DynamXCompat.isVehicle(vehicle))
+        {
+            mount.teleportVehicle(vehicle);
+            DynamXCompat.setVehicleControls(vehicle, 0);
+            System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": neu gespawnt (id=" + vehicle.getEntityId() + ")");
+        }
+        else
+        {
+            System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": konnte nicht gespawnt werden");
+        }
+    }
+
+    /**
      * Sitzt in diesem Fahrzeug ein echter Client-Spieler?
      *
      * <p>Ein Fake Player von Blockbuster ist zwar ein EntityPlayer, aber kein
@@ -262,45 +281,64 @@ public class VehicleMountAction extends MountingAction
 
                 Entity existing = EntityUtils.entityByUUID(world, mount.target);
 
-                if (existing != null && !existing.isDead)
+                if (existing == null || existing.isDead)
                 {
-                    /* Erst alle heraussetzen - auch einen echten Spieler.
-                     * Jemanden in einem Fahrzeug zu lassen, das gleich
-                     * verschwindet, laesst ihn in der Luft haengen. */
-                    for (Entity passenger : new java.util.ArrayList<Entity>(existing.getPassengers()))
-                    {
-                        passenger.dismountRidingEntity();
+                    /* Nichts zu ersetzen: sofort ein frisches an die Startpose. */
+                    spawnAtStart(mount, world);
 
-                        if (passenger instanceof net.minecraft.entity.player.EntityPlayerMP)
-                        {
-                            System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": Spieler " + passenger.getName() + " vor dem Loeschen ausgestiegen");
-                        }
-                    }
-
-                    existing.setDead();
-
-                    /* Sofort und vollstaendig aus der Welt nehmen, nicht erst am
-                     * Tick-Ende. Sonst liegt gleich darauf ein zweites Exemplar
-                     * mit derselben UUID in der Welt, und beim Aufraeumen des
-                     * alten faellt der UUID-Eintrag des neuen mit weg - dann
-                     * findet die Mount-Aktion das Auto nicht mehr. */
-                    world.removeEntityDangerously(existing);
-                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": altes entfernt (id=" + existing.getEntityId() + ")");
+                    continue;
                 }
 
-                /* Frisches Exemplar an der aufgezeichneten Startpose, damit das
-                 * Auto schon dasteht, wenn die Animation beginnt. */
-                Entity vehicle = mount.ensureVehicle(world);
-
-                if (DynamXCompat.isVehicle(vehicle))
+                /* Insassen JETZT heraussetzen, solange das Fahrzeug noch da ist.
+                 * DynamX meldet den Ausstieg per Sitz-Synchronisation an die
+                 * Clients, und erst deren Verarbeitung schliesst das Fahrzeug-HUD
+                 * (Tacho). Wer hier gleich loescht, dessen Zerstoer-Paket
+                 * ueberholt die Meldung - der Tacho blieb dem Aufnehmenden dann
+                 * dauerhaft in der Hand haengen. */
+                for (Entity passenger : new java.util.ArrayList<Entity>(existing.getPassengers()))
                 {
-                    mount.teleportVehicle(vehicle);
-                    DynamXCompat.setVehicleControls(vehicle, 0);
-                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": neu gespawnt (id=" + vehicle.getEntityId() + ")");
+                    passenger.dismountRidingEntity();
+
+                    if (passenger instanceof net.minecraft.entity.player.EntityPlayerMP)
+                    {
+                        System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": Spieler " + passenger.getName() + " ausgestiegen");
+                    }
+                }
+
+                /* Loeschen und neu aufstellen erst im naechsten Tick, damit die
+                 * Aussteige-Meldung vorher beim Client ankommt. Bis die Aufnahme
+                 * einsteigt vergehen ohnehin Sekunden. */
+                final Entity doomed = existing;
+                final VehicleMountAction target = mount;
+                net.minecraft.server.MinecraftServer server = world.getMinecraftServer();
+
+                Runnable replace = new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        if (!doomed.isDead)
+                        {
+                            doomed.setDead();
+                        }
+
+                        /* Vollstaendig aus der Welt nehmen, sonst laegen gleich
+                         * zwei mit derselben UUID drin und der Eintrag des neuen
+                         * fiele beim Aufraeumen des alten mit weg. */
+                        doomed.world.removeEntityDangerously(doomed);
+                        System.out.println("[Blockbuster] Fahrzeug " + target.target + ": altes entfernt (id=" + doomed.getEntityId() + ")");
+
+                        spawnAtStart(target, doomed.world);
+                    }
+                };
+
+                if (server == null)
+                {
+                    replace.run();
                 }
                 else
                 {
-                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": konnte nicht gespawnt werden");
+                    server.addScheduledTask(replace);
                 }
             }
         }
