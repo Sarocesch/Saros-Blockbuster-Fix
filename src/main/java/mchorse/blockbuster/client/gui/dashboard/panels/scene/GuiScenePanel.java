@@ -100,6 +100,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     public GuiToggleElement renderLast;
     public GuiToggleElement freezeAtEnd;
     public GuiToggleElement hideOuterLayer;
+    public GuiTextElement idleRecord;
     public GuiTrackpadElement health;
     public GuiTrackpadElement foodLevel;
     public GuiTrackpadElement totalExperience;
@@ -207,6 +208,8 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.freezeAtEnd.tooltip(IKey.str("This actor and the vehicle it drove stay where the scene ended. Cleared when the scene is triggered again."), Direction.RIGHT);
         this.hideOuterLayer = new GuiToggleElement(mc, IKey.str("Hide outer skin layer"), false, (b) -> this.replay.hideOuterLayer = b.isToggled());
         this.hideOuterLayer.tooltip(IKey.str("Hides the model's second skin layer (bodywear, armwear, legwear, hat) so worn clothing does not clip through it."), Direction.RIGHT);
+        this.idleRecord = new GuiTextElement(mc, 120, (str) -> this.replay.idleRecord = str).filename();
+        this.idleRecord.tooltip(IKey.str("Recording this actor loops after the scene ends. Empty means it just stops."), Direction.RIGHT);
         this.health = new GuiTrackpadElement(mc, (value) -> this.replay.health = value.floatValue());
         this.health.limit(0);
         this.foodLevel = new GuiTrackpadElement(mc, (value) -> this.replay.foodLevel = value.intValue());
@@ -220,7 +223,8 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         left.add(Elements.label(IKey.lang("blockbuster.gui.director.health")).color(0xcccccc), this.health,
                  Elements.label(IKey.lang("blockbuster.gui.director.food_level")).color(0xcccccc), this.foodLevel,
                  Elements.label(IKey.lang("blockbuster.gui.director.total_experience")).color(0xcccccc), this.totalExperience,
-                 this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast, this.freezeAtEnd, this.hideOuterLayer);
+                 this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast, this.freezeAtEnd, this.hideOuterLayer,
+                 Elements.label(IKey.str("Idle loop")).color(0xcccccc), this.idleRecord);
         this.replays.add(this.selector, this.replayEditor);
 
         /* Toggle view button */
@@ -554,6 +558,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.renderLast.toggled(this.replay.renderLast);
         this.freezeAtEnd.toggled(this.replay.freezeAtEnd);
         this.hideOuterLayer.toggled(this.replay.hideOuterLayer);
+        this.idleRecord.setText(this.replay.idleRecord);
         this.health.setValue(this.replay.health);
         this.foodLevel.setValue(this.replay.foodLevel);
         this.totalExperience.setValue(this.replay.totalExperience);

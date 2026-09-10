@@ -62,6 +62,7 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/dynamx/DynamXVehicle
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/mwf/MWFCompat.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/mwf/MWFCompatHandler.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/RecordPlayer.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/common/entity/EntityActor.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/RecordRecorder.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/capturing/ActionHandler.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/Dispatcher.java"

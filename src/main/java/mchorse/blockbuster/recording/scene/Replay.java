@@ -55,6 +55,12 @@ public class Replay
      * Useful when the actor wears clothing that the second layer clips through.
      */
     public boolean hideOuterLayer = false;
+
+    /**
+     * Aufnahme, die dieser Actor nach dem Ende in Schleife weiterspielt.
+     * Leer heisst: nichts, es bleibt beim bisherigen Verhalten.
+     */
+    public String idleRecord = "";
     public int foodLevel = 20;
     public int totalExperience = 0;
 
@@ -146,6 +152,11 @@ public class Replay
 
     public void toNBT(NBTTagCompound tag)
     {
+        if (!this.idleRecord.isEmpty())
+        {
+            tag.setString("IdleRecord", this.idleRecord);
+        }
+
         tag.setString("Id", this.id);
         tag.setString("Name", this.name);
         tag.setString("Target", this.target);
@@ -172,6 +183,8 @@ public class Replay
 
     public void fromNBT(NBTTagCompound tag)
     {
+        this.idleRecord = tag.hasKey("IdleRecord") ? tag.getString("IdleRecord") : "";
+
         this.id = tag.getString("Id");
         this.name = tag.getString("Name");
         this.target = tag.getString("Target");
@@ -196,6 +209,8 @@ public class Replay
 
     public void toBuf(ByteBuf buf)
     {
+        ByteBufUtils.writeUTF8String(buf, this.idleRecord);
+
         ByteBufUtils.writeUTF8String(buf, this.id);
         ByteBufUtils.writeUTF8String(buf, this.name);
         ByteBufUtils.writeUTF8String(buf, this.target);
@@ -218,6 +233,8 @@ public class Replay
 
     public void fromBuf(ByteBuf buf)
     {
+        this.idleRecord = ByteBufUtils.readUTF8String(buf);
+
         this.id = ByteBufUtils.readUTF8String(buf);
         this.name = ByteBufUtils.readUTF8String(buf);
         this.target = ByteBufUtils.readUTF8String(buf);
@@ -275,6 +292,7 @@ public class Replay
         replay.teleportBack = this.teleportBack;
         replay.freezeAtEnd = this.freezeAtEnd;
         replay.hideOuterLayer = this.hideOuterLayer;
+        replay.idleRecord = this.idleRecord;
         replay.renderLast = this.renderLast;
         replay.health = this.health;
         replay.foodLevel = this.foodLevel;

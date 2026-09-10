@@ -422,6 +422,33 @@ public class Scene
      * Remove the actors a previous frozen run left standing. Called when the
      * scene is triggered again, which is where the cleanup was moved to.
      */
+    /**
+     * Haengt die Idle-Aufnahme an den stehengebliebenen Actor und laesst sie in
+     * Schleife laufen. EntityActor tickt seine eigene Wiedergabe selbst weiter,
+     * die Szene muss dafuer nicht laufen. Schlaegt das Laden fehl, bleibt der
+     * Actor einfach stehen - das ist genau das bisherige Freeze-Verhalten.
+     */
+    private void startIdleLoop(Replay replay, EntityLivingBase actor)
+    {
+        try
+        {
+            RecordPlayer idle = CommonProxy.manager.play(replay.idleRecord, actor, Mode.BOTH, 0, false);
+
+            if (idle == null)
+            {
+                return;
+            }
+
+            idle.setReplay(replay);
+            idle.loop = true;
+            idle.kill = false;
+        }
+        catch (Throwable t)
+        {
+            RecordUtils.broadcastError("recording.not_recorded", replay.idleRecord);
+        }
+    }
+
     private void clearFrozenActors()
     {
         for (EntityLivingBase actor : this.frozenActors)
@@ -613,12 +640,20 @@ public class Scene
              * below and must stay controllable. */
             boolean freeze = entry.getKey().freezeAtEnd && !actor.realPlayer && actor.actor != null;
 
-            actor.kill = !freeze;
+            String idle = entry.getKey().idleRecord;
+            boolean hasIdle = idle != null && !idle.isEmpty() && !actor.realPlayer && actor.actor != null;
+
+            actor.kill = !freeze && !hasIdle;
             actor.stopPlaying();
 
-            if (freeze)
+            if (freeze || hasIdle)
             {
                 this.frozenActors.add(actor.actor);
+            }
+
+            if (hasIdle)
+            {
+                this.startIdleLoop(entry.getKey(), actor.actor);
             }
         }
 

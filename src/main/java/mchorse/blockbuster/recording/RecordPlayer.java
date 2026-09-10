@@ -60,6 +60,12 @@ public class RecordPlayer
     public boolean kill = false;
 
     /**
+     * Am Ende wieder von vorn statt aufhoeren - fuer die Idle-Aufnahme, die
+     * nach einer Szene weiterlaeuft.
+     */
+    public boolean loop = false;
+
+    /**
      * Is this player is playing
      */
     public boolean playing = true;

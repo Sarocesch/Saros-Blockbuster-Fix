@@ -287,7 +287,15 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
 
             if (this.playback.isFinished() && !this.noClip)
             {
-                this.playback.stopPlaying();
+                if (this.playback.loop)
+                {
+                    /* Idle-Schleife: wieder von vorn, statt stehen zu bleiben. */
+                    this.playback.tick = 0;
+                }
+                else
+                {
+                    this.playback.stopPlaying();
+                }
             }
             else if (tick != 0 && tick % Blockbuster.recordSyncRate.get() == 0)
             {
