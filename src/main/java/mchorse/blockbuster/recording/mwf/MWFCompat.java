@@ -409,6 +409,7 @@ public final class MWFCompat
             }
 
             methodReadCode.invoke(state, Integer.valueOf(code));
+            System.out.println("[Blockbuster] Bewegungszustand fuer " + entity.getEntityId() + " gesetzt: code=" + code);
         }
         catch (Throwable t)
         {
@@ -451,6 +452,20 @@ public final class MWFCompat
 
             Object result = methodMovementRotations.invoke(null, renderer, entity, pitch, yaw, partialTicks);
 
+            /* Einmal pro Sekunde melden, was die Lehn-Kette wirklich macht -
+             * sonst laesst sich nicht unterscheiden, ob der Zustand fehlt, die
+             * Neigung 0 ist oder die Uebernahme abgelehnt wird. */
+            /* Nur bei Aenderung melden. Einmal pro Sekunde hatte eine kurze
+             * Neigung fast verfehlt - und genau die kurzen sind die
+             * interessanten. */
+            String snapshot = Boolean.TRUE.equals(result) + " " + describeMovementState(entity);
+
+            if (!snapshot.equals(lastRotationSnapshot))
+            {
+                lastRotationSnapshot = snapshot;
+                System.out.println("[Blockbuster] Lehn-Kette " + entity.getEntityId() + ": uebernommen=" + snapshot);
+            }
+
             return Boolean.TRUE.equals(result);
         }
         catch (Throwable t)
@@ -465,6 +480,33 @@ public final class MWFCompat
      * Client side: drop an actor's pose when its playback ends.
      */
     private static java.lang.reflect.Method methodMovementRotations;
+    private static String lastRotationSnapshot = "";
+
+    /**
+     * Neigung und Pose eines Actors als Text - fuer die Fehlersuche.
+     */
+    public static String describeMovementState(Entity entity)
+    {
+        if (entity == null || !initMovement()) return "<keine Bewegungsdaten>";
+
+        try
+        {
+            Object state = clientStateMap.get(Integer.valueOf(entity.getEntityId()));
+
+            if (state == null) return "<kein Zustand fuer diese Entity>";
+
+            Class<?> cls = state.getClass();
+
+            return "probe=" + cls.getField("probe").getByte(state)
+                    + " probeOffset=" + cls.getField("probeOffset").getFloat(state)
+                    + " crawl=" + cls.getField("isCrawling").getBoolean(state)
+                    + " sit=" + cls.getField("isSitting").getBoolean(state);
+        }
+        catch (Throwable t)
+        {
+            return "<Zustand nicht lesbar: " + t + ">";
+        }
+    }
 
     public static void clearMovementState(Entity entity)
     {
