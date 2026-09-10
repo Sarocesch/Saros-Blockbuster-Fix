@@ -94,6 +94,14 @@ public class VehicleMountAction extends MountingAction
         /* Ensure the vehicle exists — respawn from NBT snapshot if missing */
         Entity vehicle = this.ensureVehicle(actor.world);
 
+        if (carriesRealPlayer(vehicle))
+        {
+            /* Ein echter Spieler sitzt drin - der wird nicht hinausgesetzt. */
+            System.out.println("[Blockbuster] Fahrzeug " + this.target + " nicht bestiegen: echter Spieler sitzt drin");
+
+            return;
+        }
+
         if (DynamXCompat.isVehicle(vehicle))
         {
             /* Teleport vehicle to start pose only if playback tick == mount tick.
@@ -105,6 +113,7 @@ public class VehicleMountAction extends MountingAction
             }
 
             boolean mounted = DynamXCompat.mountSeat(vehicle, actor, this.seatIndex);
+            System.out.println("[Blockbuster] Fahrzeug " + this.target + ": Actor " + actor.getEntityId() + " eingestiegen=" + mounted + " (Fahrzeug-id=" + vehicle.getEntityId() + ")");
 
             if (mounted)
             {
@@ -175,6 +184,30 @@ public class VehicleMountAction extends MountingAction
         }
     }
 
+    /**
+     * Sitzt in diesem Fahrzeug ein echter Client-Spieler?
+     *
+     * <p>Ein Fake Player von Blockbuster ist zwar ein EntityPlayer, aber kein
+     * EntityPlayerMP - der zaehlt hier bewusst nicht mit.</p>
+     */
+    private static boolean carriesRealPlayer(Entity vehicle)
+    {
+        if (vehicle == null || vehicle.isDead)
+        {
+            return false;
+        }
+
+        for (Entity passenger : vehicle.getPassengers())
+        {
+            if (passenger instanceof net.minecraft.entity.player.EntityPlayerMP)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void teleportVehicle(Entity vehicle)
     {
         if (vehicle == null) return;
@@ -221,24 +254,48 @@ public class VehicleMountAction extends MountingAction
                 if (!mount.hasStartPose) continue;
                 if (!mount.isMounting) continue; /* only first mount carries snapshot */
 
-                /* Erst das alte Exemplar weg... */
-                Entity old = EntityUtils.entityByUUID(world, mount.target);
+                Entity existing = EntityUtils.entityByUUID(world, mount.target);
 
-                if (old != null && !old.isDead)
+                if (carriesRealPlayer(existing))
                 {
-                    old.removePassengers();
-                    old.setDead();
+                    /* Da sitzt ein echter Spieler drin. Nicht anfassen - weder
+                     * hinaussetzen noch loeschen. Eine Aufnahme darf niemandem
+                     * das Auto unter dem Hintern wegnehmen. */
+                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + " uebersprungen: echter Spieler sitzt drin");
+                    continue;
                 }
 
-                /* ...dann ein frisches an der aufgezeichneten Startpose. Das
-                 * Auto steht damit schon da, wenn die Animation beginnt,
-                 * statt erst beim Einsteigen aufzutauchen. */
+                if (existing != null && !existing.isDead)
+                {
+                    /* Vorhandenes Exemplar an Ort und Stelle zuruecksetzen.
+                     *
+                     * NICHT toeten und mit derselben UUID neu spawnen: beide
+                     * lagen dann im selben Tick in der Welt, und beim Aufraeumen
+                     * des alten flog der UUID-Eintrag des neuen mit weg. Danach
+                     * fand die Mount-Aktion das Auto nicht mehr - daher das
+                     * unregelmaessige Verhalten bei mehrfachem Starten. */
+                    existing.removePassengers();
+                    mount.teleportVehicle(existing);
+                    DynamXCompat.setVehicleControls(existing, 0);
+                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": vorhandenes zurueckgesetzt (id=" + existing.getEntityId() + ")");
+
+                    continue;
+                }
+
+                /* Nicht vorhanden: frisch an der aufgezeichneten Startpose
+                 * hinstellen, damit das Auto schon dasteht, wenn die Animation
+                 * beginnt, statt erst beim Einsteigen aufzutauchen. */
                 Entity vehicle = mount.ensureVehicle(world);
 
                 if (DynamXCompat.isVehicle(vehicle))
                 {
                     mount.teleportVehicle(vehicle);
                     DynamXCompat.setVehicleControls(vehicle, 0);
+                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": neu gespawnt (id=" + vehicle.getEntityId() + ")");
+                }
+                else
+                {
+                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": konnte nicht gespawnt werden");
                 }
             }
         }
