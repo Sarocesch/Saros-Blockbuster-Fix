@@ -202,6 +202,11 @@ public class ActionHandler
 
         if (!player.world.isRemote && events != null)
         {
+            if (isAimingWithGun(player))
+            {
+                return;
+            }
+
             Vec3d hit = event.getHitVec();
             BlockPos pos = event.getPos();
 
@@ -243,8 +248,26 @@ public class ActionHandler
 
         if (!player.world.isRemote && events != null)
         {
+            if (isAimingWithGun(player))
+            {
+                return;
+            }
+
             events.add(new InteractBlockAction(event.getPos()));
         }
+    }
+
+    /**
+     * Rechtsklick mit einer MWF-Waffe ist ZIELEN, kein Benutzen.
+     *
+     * <p>Ohne diese Unterscheidung landete jedes Zielen als Block-Interaktion in
+     * der Aufnahme. Beim Abspielen hat der Actor dann an Tueren herumgedrueckt -
+     * hoerbar als Tuergeraeusche, und im schlimmsten Fall geht auf dem Set eine
+     * Tuer auf, die zubleiben soll.</p>
+     */
+    private static boolean isAimingWithGun(EntityPlayer player)
+    {
+        return MWFCompat.getHoldKind(player.getHeldItemMainhand()) == MWFCompat.HOLD_GUN;
     }
 
     /**
