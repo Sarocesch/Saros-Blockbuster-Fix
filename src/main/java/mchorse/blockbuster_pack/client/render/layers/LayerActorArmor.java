@@ -17,7 +17,13 @@ import net.minecraft.item.ItemArmor;
 import net.minecraft.item.ItemStack;
 import org.lwjgl.opengl.GL11;
 
+import mchorse.blockbuster.api.ModelPose;
+import mchorse.blockbuster.api.ModelTransform;
+
+import java.lang.reflect.Field;
+import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -44,8 +50,16 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
 
     private static final String DYNAMX_ARMOR_CLASS = "fr.dynamx.client.renders.model.ModelObjArmor";
 
+    private static final float DEG = 180F / (float) Math.PI;
+
     /** Reused per doRenderLayer call to avoid per-frame allocation. Cleared before use. */
     private final Set<EntityEquipmentSlot> renderedDynamXSlots = new HashSet<EntityEquipmentSlot>();
+
+    /** Armor roles already drawn this frame, so two limbs sharing a role draw one piece. */
+    private final Set<ArmorSlot> drawnDynamXParts = new HashSet<ArmorSlot>();
+
+    /** Which custom limb carries which armor role. First limb in the model wins. */
+    private final Map<ArmorSlot, ModelCustomRenderer> anchors = new EnumMap<ArmorSlot, ModelCustomRenderer>(ArmorSlot.class);
 
     @Override
     public void doRenderLayer(EntityLivingBase entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch, float scale)
@@ -56,7 +70,17 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
         {
             ModelCustom model = (ModelCustom) base;
 
-            renderedDynamXSlots.clear();
+            this.renderedDynamXSlots.clear();
+            this.drawnDynamXParts.clear();
+            this.anchors.clear();
+
+            for (ModelCustomRenderer limb : model.armor)
+            {
+                if (!this.anchors.containsKey(limb.limb.slot))
+                {
+                    this.anchors.put(limb.limb.slot, limb);
+                }
+            }
 
             for (ModelCustomRenderer limb : model.armor)
             {
@@ -75,9 +99,18 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
 
                         if (armorModel != null && armorModel.getClass().getName().equals(DYNAMX_ARMOR_CLASS))
                         {
-                            /* DynamX OBJ armor: render via the scene-graph path (model.render)
-                             * which manages its own textures. Only render once per slot. */
-                            if (renderedDynamXSlots.add(limb.limb.slot.slot))
+                            /* Draw each DynamX piece inside the custom limb that carries its
+                             * role. Only when every piece of this equipment slot has a limb to
+                             * hang on, otherwise pieces would silently go missing and the
+                             * whole-model path is the better guess. */
+                            if (this.canAnchorEveryPart(armorModel, limb.limb.slot.slot))
+                            {
+                                if (this.drawnDynamXParts.add(limb.limb.slot))
+                                {
+                                    this.renderDynamXPartInLimb(model, armorModel, limb, scale);
+                                }
+                            }
+                            else if (this.renderedDynamXSlots.add(limb.limb.slot.slot))
                             {
                                 this.renderDynamXArmorSlot(entity, armorModel, limb.limb.slot.slot, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale);
                             }
@@ -91,6 +124,270 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
                 }
             }
         }
+    }
+
+    /* --- DynamX armor, drawn limb by limb ---------------------------------
+     *
+     * ModelObjArmor is written for a vanilla player: it reads the ModelBiped
+     * bones every frame, and while sneaking ArmorNode adds a fixed
+     * translate(0, 0.2, 0). A custom model poses its own limbs and leaves the
+     * biped bones untouched, so that path can only guess - hence the torso
+     * sitting too low and the wrong rotation while sneaking.
+     *
+     * ArmorRenderer.render is a pivot: translate by rotationPoint, flip 180
+     * degrees around X into the OBJ's space, rotate, then translate by
+     * (-offsetX, +offsetY, -offsetZ), offset being the REST position of the
+     * bone the piece belongs to. Placing the matrix on the limb already covers
+     * position and rotation, so rotationPoint and the angles go to zero and
+     * only offset is set - to the limb's rest pivot, taken from the standing
+     * pose. Its current pivot would cancel out and the piece would never move.
+     */
+
+    private static boolean dynamxFieldsResolved;
+    private static Field fieldHead;
+    private static Field fieldBody;
+    private static Field fieldArms;
+    private static Field fieldLegs;
+    private static Field fieldFoot;
+
+    private static boolean resolveDynamXFields(Class<?> clazz)
+    {
+        if (dynamxFieldsResolved)
+        {
+            return fieldBody != null;
+        }
+
+        dynamxFieldsResolved = true;
+
+        try
+        {
+            fieldHead = clazz.getDeclaredField("head");
+            fieldBody = clazz.getDeclaredField("body");
+            fieldArms = clazz.getDeclaredField("arms");
+            fieldLegs = clazz.getDeclaredField("legs");
+            fieldFoot = clazz.getDeclaredField("foot");
+
+            fieldHead.setAccessible(true);
+            fieldBody.setAccessible(true);
+            fieldArms.setAccessible(true);
+            fieldLegs.setAccessible(true);
+            fieldFoot.setAccessible(true);
+        }
+        catch (Throwable t)
+        {
+            fieldHead = fieldBody = fieldArms = fieldLegs = fieldFoot = null;
+            System.out.println("[Blockbuster] DynamX armor parts unreachable, falling back to the whole-model path: " + t);
+        }
+
+        return fieldBody != null;
+    }
+
+    /**
+     * @return true when every piece this armor has for the slot has a limb to hang on
+     */
+    private boolean canAnchorEveryPart(ModelBiped armorModel, EntityEquipmentSlot slot)
+    {
+        if (!resolveDynamXFields(armorModel.getClass()))
+        {
+            return false;
+        }
+
+        try
+        {
+            switch (slot)
+            {
+                case HEAD:
+                    return fieldHead.get(armorModel) == null || this.anchors.containsKey(ArmorSlot.HEAD);
+
+                case CHEST:
+                    if (fieldBody.get(armorModel) != null && !this.anchors.containsKey(ArmorSlot.CHEST))
+                    {
+                        return false;
+                    }
+
+                    return fieldArms.get(armorModel) == null
+                        || (this.anchors.containsKey(ArmorSlot.LEFT_SHOULDER) && this.anchors.containsKey(ArmorSlot.RIGHT_SHOULDER));
+
+                case LEGS:
+                    return fieldLegs.get(armorModel) == null
+                        || (this.anchors.containsKey(ArmorSlot.LEFT_LEG) && this.anchors.containsKey(ArmorSlot.RIGHT_LEG));
+
+                case FEET:
+                    return fieldFoot.get(armorModel) == null
+                        || (this.anchors.containsKey(ArmorSlot.LEFT_FOOT) && this.anchors.containsKey(ArmorSlot.RIGHT_FOOT));
+
+                default:
+                    return false;
+            }
+        }
+        catch (Throwable t)
+        {
+            return false;
+        }
+    }
+
+    private void renderDynamXPartInLimb(ModelCustom model, ModelBiped armorModel, ModelCustomRenderer limb, float scale)
+    {
+        ModelRenderer part = this.getDynamXPart(armorModel, limb.limb.slot);
+
+        if (part == null)
+        {
+            return;
+        }
+
+        float[] rest = restPivot(model, limb);
+
+        /* ModelObjArmor belongs to the armor TYPE and is shared by everyone
+         * wearing it. Every field written here has to go back, or the next
+         * wearer - a real player - inherits the actor's values. */
+        float pointX = part.rotationPointX;
+        float pointY = part.rotationPointY;
+        float pointZ = part.rotationPointZ;
+        float angleX = part.rotateAngleX;
+        float angleY = part.rotateAngleY;
+        float angleZ = part.rotateAngleZ;
+        float offsetX = part.offsetX;
+        float offsetY = part.offsetY;
+        float offsetZ = part.offsetZ;
+
+        GlStateManager.pushMatrix();
+
+        try
+        {
+            part.rotationPointX = 0F;
+            part.rotationPointY = 0F;
+            part.rotationPointZ = 0F;
+            part.rotateAngleX = 0F;
+            part.rotateAngleY = 0F;
+            part.rotateAngleZ = 0F;
+
+            part.offsetX = rest[0] / 16F;
+            part.offsetY = rest[1] / 16F;
+            part.offsetZ = -rest[2] / 16F;
+
+            applyLimbChain(limb, scale);
+            part.render(scale);
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] DynamX armor piece " + limb.limb.slot + " failed: " + t);
+        }
+        finally
+        {
+            part.rotationPointX = pointX;
+            part.rotationPointY = pointY;
+            part.rotationPointZ = pointZ;
+            part.rotateAngleX = angleX;
+            part.rotateAngleY = angleY;
+            part.rotateAngleZ = angleZ;
+            part.offsetX = offsetX;
+            part.offsetY = offsetY;
+            part.offsetZ = offsetZ;
+
+            GlStateManager.popMatrix();
+        }
+    }
+
+    /**
+     * Same transform ModelCustomRenderer.postRender applies, root limb first,
+     * but without its isHidden/showModel check: the limb carrying an armor
+     * role may well be a hidden one (the outer skin layer), and skipping the
+     * transform would drop the piece at the model's origin.
+     */
+    private static void applyLimbChain(ModelCustomRenderer limb, float scale)
+    {
+        if (limb.parent != null)
+        {
+            applyLimbChain(limb.parent, scale);
+        }
+
+        if (limb.rotateAngleX == 0F && limb.rotateAngleY == 0F && limb.rotateAngleZ == 0F)
+        {
+            if (limb.rotationPointX != 0F || limb.rotationPointY != 0F || limb.rotationPointZ != 0F)
+            {
+                GlStateManager.translate(limb.rotationPointX * scale, limb.rotationPointY * scale, limb.rotationPointZ * scale);
+            }
+        }
+        else
+        {
+            GlStateManager.translate(limb.rotationPointX * scale, limb.rotationPointY * scale, limb.rotationPointZ * scale);
+
+            if (limb.rotateAngleZ != 0F) GlStateManager.rotate(limb.rotateAngleZ * DEG, 0F, 0F, 1F);
+            if (limb.rotateAngleY != 0F) GlStateManager.rotate(limb.rotateAngleY * DEG, 0F, 1F, 0F);
+            if (limb.rotateAngleX != 0F) GlStateManager.rotate(limb.rotateAngleX * DEG, 1F, 0F, 0F);
+        }
+
+        GlStateManager.scale(limb.scaleX, limb.scaleY, limb.scaleZ);
+    }
+
+    /**
+     * The limb's pivot in the standing pose, accumulated over its parents, in
+     * the same units and signs ModelCustomRenderer.applyTransform produces.
+     */
+    private static float[] restPivot(ModelCustom model, ModelCustomRenderer limb)
+    {
+        float[] result = new float[3];
+        ModelPose standing = model == null || model.model == null ? null : model.model.poses.get("standing");
+
+        for (ModelCustomRenderer current = limb; current != null; current = current.parent)
+        {
+            ModelTransform transform = standing == null || current.limb == null ? null : standing.limbs.get(current.limb.name);
+
+            if (transform == null)
+            {
+                /* No standing entry - the live pivot is the best reference left. */
+                result[0] += current.rotationPointX;
+                result[1] += current.rotationPointY;
+                result[2] += current.rotationPointZ;
+
+                continue;
+            }
+
+            result[0] += transform.translate[0];
+            result[1] += current.limb.parent.isEmpty() ? (-transform.translate[1] + 24F) : -transform.translate[1];
+            result[2] += -transform.translate[2];
+        }
+
+        return result;
+    }
+
+    private ModelRenderer getDynamXPart(ModelBiped armorModel, ArmorSlot slot)
+    {
+        try
+        {
+            switch (slot)
+            {
+                case HEAD:           return (ModelRenderer) fieldHead.get(armorModel);
+                case CHEST:          return (ModelRenderer) fieldBody.get(armorModel);
+                case LEFT_SHOULDER:  return dynamxPart(fieldArms, armorModel, 0);
+                case RIGHT_SHOULDER: return dynamxPart(fieldArms, armorModel, 1);
+                case LEFT_LEG:       return dynamxPart(fieldLegs, armorModel, 0);
+                case RIGHT_LEG:      return dynamxPart(fieldLegs, armorModel, 1);
+                case LEFT_FOOT:      return dynamxPart(fieldFoot, armorModel, 0);
+                case RIGHT_FOOT:     return dynamxPart(fieldFoot, armorModel, 1);
+                /* LEGGINGS carries no piece of its own - DynamX splits the
+                 * trousers into the two leg parts, drawn by LEFT/RIGHT_LEG. */
+                default:             return null;
+            }
+        }
+        catch (Throwable t)
+        {
+            return null;
+        }
+    }
+
+    private static ModelRenderer dynamxPart(Field field, ModelBiped armorModel, int index) throws Exception
+    {
+        Object value = field.get(armorModel);
+
+        if (!(value instanceof Object[]))
+        {
+            return null;
+        }
+
+        Object[] parts = (Object[]) value;
+
+        return index < parts.length && parts[index] instanceof ModelRenderer ? (ModelRenderer) parts[index] : null;
     }
 
     /**

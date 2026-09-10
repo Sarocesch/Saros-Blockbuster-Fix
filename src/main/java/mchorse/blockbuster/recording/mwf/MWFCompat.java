@@ -159,11 +159,35 @@ public final class MWFCompat
                 mTrigger.invoke(machine, ctrl, enhModel, gunType, fireTickDelay, false);
                 System.out.println("[Blockbuster] MWF fire: ENHANCED triggerShoot OK");
             }
+
+            /* The visible bullet. MWF spawns it in FireManager, which an actor
+             * never runs, so the actor fired with animation, sound and flash but
+             * nothing left the barrel. Purely cosmetic and client local. */
+            spawnCosmeticTrail(clsCRH, entity, gunType);
         }
         catch (Throwable t)
         {
             /* Was silent before, which made this impossible to diagnose from a log. */
             System.out.println("[Blockbuster] MWF fire animation failed: " + t);
+        }
+    }
+
+    private static void spawnCosmeticTrail(Class<?> clsCRH, EntityLivingBase entity, Object gunType)
+    {
+        try
+        {
+            Class<?> clsGunType = Class.forName("com.modularwarfare.common.guns.GunType");
+            Method mTrail = clsCRH.getMethod("spawnCosmeticTrail", EntityLivingBase.class, clsGunType, net.minecraft.item.ItemStack.class);
+
+            mTrail.invoke(null, entity, gunType, entity.getHeldItemMainhand());
+        }
+        catch (NoSuchMethodException e)
+        {
+            /* Older MWF without the cosmetic entry point - animation still plays. */
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] MWF cosmetic trail failed: " + t);
         }
     }
 
