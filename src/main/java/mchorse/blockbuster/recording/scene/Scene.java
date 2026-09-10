@@ -671,6 +671,9 @@ public class Scene
             boolean hasIdle = idle != null && !idle.isEmpty() && !actor.realPlayer && actor.actor != null;
 
             actor.kill = !freeze && !hasIdle;
+            System.out.println("[Blockbuster] Szenenende: Actor " + (actor.actor == null ? "?" : String.valueOf(actor.actor.getEntityId()))
+                    + " freezeAtEnd=" + entry.getKey().freezeAtEnd + " realPlayer=" + actor.realPlayer
+                    + " -> freeze=" + freeze + " idle=" + hasIdle + " kill=" + actor.kill);
             actor.stopPlaying();
 
             if (freeze || hasIdle)
