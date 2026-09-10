@@ -202,7 +202,16 @@ public class Frame
         /* Inject frame's values into actor */
         if (!isRemote || force)
         {
-            mount.setPosition(this.x, this.y, this.z);
+            /* Einem DynamX-Fahrzeug NICHT die aufgezeichnete Position
+             * aufzwingen. Es rechnet seine eigene Physik, und die
+             * abgespielten Lenkbefehle fahren es ohnehin - beides zusammen
+             * riss es jeden Tick hin und her, sichtbar als starkes Zittern in
+             * den ersten Sekunden. Der Actor selbst wird weiter gesetzt, der
+             * sitzt dann sauber auf dem Sitz. */
+            if (mount == actor || !mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mount))
+            {
+                mount.setPosition(this.x, this.y, this.z);
+            }
         }
 
         /* Rotation */

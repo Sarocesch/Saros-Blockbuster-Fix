@@ -495,30 +495,14 @@ public class ModelCustom extends ModelBiped
         ModelCustomRenderer[] limbs = new ModelCustomRenderer[6];
         ModelRenderer[] bones = {this.bipedHead, this.bipedBody, this.bipedLeftArm, this.bipedRightArm, this.bipedLeftLeg, this.bipedRightLeg};
 
-        for (ModelCustomRenderer limb : this.limbs)
+        /* Mehrere Limbs koennen denselben Knochen beanspruchen: beim
+         * Standardmodell traegt bodywear die Rolle chest, ist aber ein Kind von
+         * body. Die Koerperdrehung gehoert an body, nicht an die Kleiderschicht
+         * - also gewinnt immer das wurzelnaechste Limb. (this.limbs kommt aus
+         * einer HashMap, die Reihenfolge allein waere nicht einmal stabil.) */
+        for (int i = 0; i < limbs.length; i++)
         {
-            int index = boneIndex(limb.limb.slot);
-
-            if (index < 0)
-            {
-                index = boneIndexByName(limb.limb.name);
-            }
-
-            if (index < 0)
-            {
-                continue;
-            }
-
-            /* Mehrere Limbs koennen denselben Knochen beanspruchen: beim
-             * Standardmodell traegt bodywear die Rolle chest, ist aber ein Kind
-             * von body. Die Koerperdrehung gehoert an body, nicht an die
-             * Kleiderschicht - also gewinnt immer das wurzelnaechste Limb.
-             * (this.limbs kommt aus einer HashMap, die Reihenfolge allein waere
-             * nicht einmal stabil.) */
-            if (limbs[index] == null || depth(limb) < depth(limbs[index]))
-            {
-                limbs[index] = limb;
-            }
+            limbs[i] = this.limbForBone(i);
         }
 
         for (int i = 0; i < bones.length; i++)
@@ -541,6 +525,58 @@ public class ModelCustom extends ModelBiped
             limbs[i].rotateAngleY = bones[i].rotateAngleY;
             limbs[i].rotateAngleZ = bones[i].rotateAngleZ;
         }
+    }
+
+    /**
+     * Welchen Knochen fremde Mods als Arm ansprechen sollen.
+     *
+     * <p>MWF haengt die Waffe in der dritten Person ueber postRenderArm an
+     * diesen Renderer. Der geerbte bipedRightArm bewegt sich bei einem
+     * Custom-Modell nie - deshalb blieb die Waffe beim Sneaken auf
+     * Steh-Hoehe, waehrend der Actor herunterging. Das echte Limb kennt
+     * seine ganze Elternkette und liefert Position UND Drehung richtig.</p>
+     */
+    @Override
+    protected ModelRenderer getArmForSide(net.minecraft.util.EnumHandSide side)
+    {
+        ModelCustomRenderer limb = this.limbForBone(side == net.minecraft.util.EnumHandSide.LEFT ? 2 : 3);
+
+        return limb == null ? super.getArmForSide(side) : limb;
+    }
+
+    /**
+     * Wurzelnaechstes Limb fuer einen Biped-Knochen, oder null.
+     */
+    public ModelCustomRenderer limbForBone(int bone)
+    {
+        ModelCustomRenderer result = null;
+
+        if (this.limbs == null)
+        {
+            return null;
+        }
+
+        for (ModelCustomRenderer limb : this.limbs)
+        {
+            int index = boneIndex(limb.limb.slot);
+
+            if (index < 0)
+            {
+                index = boneIndexByName(limb.limb.name);
+            }
+
+            if (index != bone)
+            {
+                continue;
+            }
+
+            if (result == null || depth(limb) < depth(result))
+            {
+                result = limb;
+            }
+        }
+
+        return result;
     }
 
     private static int depth(ModelCustomRenderer limb)

@@ -48,13 +48,13 @@ public class Replay
      * Keep this actor and the vehicle it drove standing where the scene
      * ended. The cleanup moves to the next trigger of the scene.
      */
-    public boolean freezeAtEnd = false;
+    public boolean freezeAtEnd = true;
 
     /**
      * Hide the model's outer skin layer (bodywear, armwear, legwear, outer).
      * Useful when the actor wears clothing that the second layer clips through.
      */
-    public boolean hideOuterLayer = false;
+    public boolean hideOuterLayer = true;
 
     /**
      * Aufnahme, die dieser Actor nach dem Ende in Schleife weiterspielt.
@@ -172,8 +172,10 @@ public class Replay
         tag.setBoolean("Enabled", this.enabled);
         tag.setBoolean("Fake", this.fake);
         if (!this.teleportBack) tag.setBoolean("TP", this.teleportBack);
-        if (this.freezeAtEnd) tag.setBoolean("FreezeAtEnd", this.freezeAtEnd);
-        if (this.hideOuterLayer) tag.setBoolean("HideOuterLayer", this.hideOuterLayer);
+        /* Immer schreiben, seit beide standardmaessig an sind - sonst waere
+         * ein bewusstes Ausschalten beim naechsten Laden wieder ueberstimmt. */
+        tag.setBoolean("FreezeAtEnd", this.freezeAtEnd);
+        tag.setBoolean("HideOuterLayer", this.hideOuterLayer);
         if (this.health != 20) tag.setFloat("Health", this.health);
         if (this.foodLevel != 20) tag.setInteger("FoodLevel", this.foodLevel);
         if (this.totalExperience != 0) tag.setInteger("TotalExperience", this.totalExperience);

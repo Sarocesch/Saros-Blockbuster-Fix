@@ -112,6 +112,14 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     public boolean wasAttached;
 
     /**
+     * Szene, die diesen Actor am Ende hat stehen lassen (Freeze oder Idle).
+     * Wird mitgespeichert, damit ein Weltneustart die Uebrigen nicht vergisst -
+     * die Liste in der Szene lebt nur im Arbeitsspeicher, die Entity aber auf
+     * der Platte. Ohne das stapeln sich die Actors nach jedem Neustart.
+     */
+    public String leftoverScene = "";
+
+    /**
      * Whether the control of playback should be manual 
      */
     public boolean manual = false;
@@ -661,6 +669,7 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         this.invisible = tag.getBoolean("Invisible");
         this.enableBurning = tag.getBoolean("EnableBurning");
         this.wasAttached = tag.getBoolean("WasAttached");
+        this.leftoverScene = tag.getString("LeftoverScene");
 
         if (!this.world.isRemote)
         {
@@ -681,6 +690,11 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         tag.setBoolean("Invisible", this.invisible);
         tag.setBoolean("EnableBurning", this.enableBurning);
         tag.setBoolean("WasAttached", this.wasAttached);
+
+        if (!this.leftoverScene.isEmpty())
+        {
+            tag.setString("LeftoverScene", this.leftoverScene);
+        }
     }
 
     /* IEntityAdditionalSpawnData implementation */

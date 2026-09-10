@@ -221,12 +221,24 @@ public class VehicleMountAction extends MountingAction
                 if (!mount.hasStartPose) continue;
                 if (!mount.isMounting) continue; /* only first mount carries snapshot */
 
+                /* Erst das alte Exemplar weg... */
+                Entity old = EntityUtils.entityByUUID(world, mount.target);
+
+                if (old != null && !old.isDead)
+                {
+                    old.removePassengers();
+                    old.setDead();
+                }
+
+                /* ...dann ein frisches an der aufgezeichneten Startpose. Das
+                 * Auto steht damit schon da, wenn die Animation beginnt,
+                 * statt erst beim Einsteigen aufzutauchen. */
                 Entity vehicle = mount.ensureVehicle(world);
+
                 if (DynamXCompat.isVehicle(vehicle))
                 {
                     mount.teleportVehicle(vehicle);
                     DynamXCompat.setVehicleControls(vehicle, 0);
-                    vehicle.setDead();
                 }
             }
         }

@@ -664,6 +664,11 @@ public class ActionHandler
      * couple of actions to a recording. Wrapped defensively because this runs
      * inside the recording tick - a failure here must never abort a recording.
      */
+    private static String describe(ItemStack stack)
+    {
+        return stack == null || stack.isEmpty() ? "<leer>" : stack.getItem().getClass().getSimpleName() + "/" + stack.getItem().getRegistryName();
+    }
+
     private void tickMWFVest(EntityPlayer player)
     {
         try
@@ -673,6 +678,15 @@ public class ActionHandler
             UUID id = player.getUniqueID();
             ItemStack current = MWFCompat.getExtraSlotStack(player, MWFCompat.SLOT_VEST);
             ItemStack previous = this.lastVests.get(id);
+
+            if (previous == null)
+            {
+                /* Einmal je Aufnahme sagen, was wirklich in den Slots liegt.
+                 * Ohne das laesst sich nicht unterscheiden, ob die Weste nicht
+                 * uebertragen wird oder schlicht keine getragen wurde. */
+                System.out.println("[Blockbuster] Aufnahme MWF: extraSlot=" + (current.isEmpty() ? "<leer>" : current.getItem().getClass().getSimpleName() + "/" + current.getItem().getRegistryName())
+                        + " chest=" + describe(player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST)));
+            }
 
             if (previous != null && ItemStack.areItemStacksEqual(previous, current)) return;
             if (previous == null && current.isEmpty()) return;

@@ -200,6 +200,16 @@ public class RenderCustomModel extends RenderLivingBase<EntityLivingBase>
     @Override
     protected void applyRotations(EntityLivingBase entity, float pitch, float yaw, float partialTicks)
     {
+        /* Lehnen, Sitzen und Kriechen aus ModularMovements sind KEINE
+         * Knochenwinkel, sondern eine Verformung des ganzen Modells in
+         * ClientListener.applyRotations. Deshalb war davon auf dem Actor
+         * nichts zu sehen, obwohl die Posen ankamen. Gibt true zurueck, wenn
+         * es die Drehung komplett uebernommen hat. */
+        if (mchorse.blockbuster.recording.mwf.MWFCompat.applyMovementRotations(this, entity, pitch, yaw, partialTicks))
+        {
+            return;
+        }
+
         if (entity.isEntityAlive() && entity.isPlayerSleeping())
         {
             /* Nap time! */

@@ -91,13 +91,36 @@ public class RenderCustomActor extends RenderCustomModel
         return true;
     }
 
+    /**
+     * Letzter bekannter Wert je Actor. Beim Einfrieren am Szenenende wird der
+     * RecordPlayer abgeraeumt - ohne dieses Gedaechtnis kam die aeussere
+     * Hautschicht in dem Moment zurueck, in dem der Actor stehen blieb.
+     */
+    private static final java.util.Map<Integer, Boolean> LAST_HIDDEN = new java.util.HashMap<Integer, Boolean>();
+
     private boolean wantsOuterLayerHidden(EntityLivingBase entity)
     {
         try
         {
+            if (entity.isDead)
+            {
+                LAST_HIDDEN.remove(entity.getEntityId());
+
+                return false;
+            }
+
             RecordPlayer record = EntityUtils.getRecordPlayer(entity);
 
-            return record != null && record.getReplay() != null && record.getReplay().hideOuterLayer;
+            if (record != null && record.getReplay() != null)
+            {
+                boolean hidden = record.getReplay().hideOuterLayer;
+
+                LAST_HIDDEN.put(entity.getEntityId(), Boolean.valueOf(hidden));
+
+                return hidden;
+            }
+
+            return Boolean.TRUE.equals(LAST_HIDDEN.get(entity.getEntityId()));
         }
         catch (Throwable ignored) {}
 

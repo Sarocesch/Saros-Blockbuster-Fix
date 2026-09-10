@@ -18,6 +18,7 @@ import mchorse.blockbuster.recording.scene.fake.FakeContext;
 import mchorse.mclib.utils.LatencyTimer;
 import mchorse.vanilla_pack.morphs.PlayerMorph;
 import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -460,6 +461,32 @@ public class Scene
         }
 
         this.frozenActors.clear();
+
+        /* Und alles, was eine fruehere Sitzung stehen gelassen hat. Nach einem
+         * Weltneustart ist die Liste oben leer, die Actors stehen aber noch in
+         * der Welt - genau so stapelten sie sich bei jedem Ausloesen weiter. */
+        String id = this.getId();
+
+        if (id == null || id.isEmpty())
+        {
+            return;
+        }
+
+        World world = this.getWorld();
+
+        if (world == null)
+        {
+            return;
+        }
+
+        for (Entity entity : new java.util.ArrayList<Entity>(world.loadedEntityList))
+        {
+            if (entity instanceof EntityActor && !entity.isDead
+                    && id.equals(((EntityActor) entity).leftoverScene))
+            {
+                entity.setDead();
+            }
+        }
     }
 
     public void startPlayback(int tick)
@@ -649,6 +676,13 @@ public class Scene
             if (freeze || hasIdle)
             {
                 this.frozenActors.add(actor.actor);
+
+                /* Auch auf der Entity vermerken. Die Liste hier ueberlebt keinen
+                 * Weltneustart, die gespeicherte Entity schon. */
+                if (actor.actor instanceof EntityActor)
+                {
+                    ((EntityActor) actor.actor).leftoverScene = this.getId();
+                }
             }
 
             if (hasIdle)

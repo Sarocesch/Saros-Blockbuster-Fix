@@ -340,6 +340,21 @@ public final class MWFCompat
                     float.class, float.class, float.class, float.class, float.class, float.class,
                     net.minecraft.entity.Entity.class);
 
+            /* Die Ganzmodell-Verformung (Lehnen, Sitzen, Kriechen) steckt
+             * nicht in setRotationAngles, sondern in applyRotations. */
+            try
+            {
+                methodMovementRotations = classClient.getMethod("applyRotations",
+                        net.minecraft.client.renderer.entity.RenderLivingBase.class,
+                        net.minecraft.entity.EntityLivingBase.class,
+                        float.class, float.class, float.class);
+            }
+            catch (Throwable t)
+            {
+                methodMovementRotations = null;
+                System.out.println("[Blockbuster] ModularMovements applyRotations not found: " + t);
+            }
+
             movementAvailable = serverStateMap != null && clientStateMap != null;
         }
         catch (Throwable t)
@@ -418,8 +433,39 @@ public final class MWFCompat
     }
 
     /**
+     * Client side: let ModularMovements apply its whole-model transform - the
+     * lean tilt, the sitting drop and the crawling flip. Those are NOT bone
+     * angles, they are a GL transform in ClientListener.applyRotations, so
+     * applyMovementAngles alone never showed them.
+     *
+     * @return true when ModularMovements took over the rotation entirely
+     */
+    public static boolean applyMovementRotations(Object renderer, Entity entity, float pitch, float yaw, float partialTicks)
+    {
+        if (renderer == null || entity == null || !initMovement()) return false;
+        if (!clientStateMap.containsKey(Integer.valueOf(entity.getEntityId()))) return false;
+
+        try
+        {
+            if (methodMovementRotations == null) return false;
+
+            Object result = methodMovementRotations.invoke(null, renderer, entity, pitch, yaw, partialTicks);
+
+            return Boolean.TRUE.equals(result);
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] ModularMovements rotation failed: " + t);
+        }
+
+        return false;
+    }
+
+    /**
      * Client side: drop an actor's pose when its playback ends.
      */
+    private static java.lang.reflect.Method methodMovementRotations;
+
     public static void clearMovementState(Entity entity)
     {
         if (entity == null || !initMovement()) return;
