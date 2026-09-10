@@ -265,13 +265,6 @@ public class ModelCustom extends ModelBiped
     @Override
     public void setRotationAngles(float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, float scaleFactor, Entity entityIn)
     {
-        /* ModularMovements poses players through MWF's own model class,
-         * which an actor never goes through. Its state map is keyed by entity
-         * id and setRotationAngles takes a plain ModelBiped, so the same pose
-         * can be applied here - lean, sit, crawl and roll included.
-         * No-op unless a replay put a pose on this entity. */
-        mchorse.blockbuster.recording.mwf.MWFCompat.applyMovementAngles(this, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scaleFactor, entityIn);
-
         if (entityIn instanceof EntityLivingBase)
         {
             this.setHands((EntityLivingBase) entityIn);
@@ -477,6 +470,124 @@ public class ModelCustom extends ModelBiped
             limb.rotateAngleX = (limb.rotateAngleX - rotateX) * anim + rotateX;
             limb.rotateAngleY = (limb.rotateAngleY - rotateY) * anim + rotateY;
             limb.rotateAngleZ = (limb.rotateAngleZ - rotateZ) * anim + rotateZ;
+        }
+
+        this.applyExternalPoses(limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scaleFactor, entityIn);
+    }
+
+    /**
+     * ModularMovements (lean, sit, crawl, roll) and the DynamX driving pose both
+     * work on ModelBiped bones. A custom model poses its OWN limbs and never
+     * reads those bones, so everything written there stayed invisible - which is
+     * why the movement poses never showed up on an actor.
+     *
+     * So: seed the biped bones from the limbs that were just posed, let the
+     * other mods change them, and copy the result back onto those limbs. Runs
+     * last, after every limb has its final angle.
+     */
+    private void applyExternalPoses(float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, float scaleFactor, Entity entityIn)
+    {
+        if (entityIn == null)
+        {
+            return;
+        }
+
+        ModelCustomRenderer[] limbs = new ModelCustomRenderer[6];
+        ModelRenderer[] bones = {this.bipedHead, this.bipedBody, this.bipedLeftArm, this.bipedRightArm, this.bipedLeftLeg, this.bipedRightLeg};
+
+        for (ModelCustomRenderer limb : this.limbs)
+        {
+            int index = boneIndex(limb.limb.slot);
+
+            if (index < 0)
+            {
+                index = boneIndexByName(limb.limb.name);
+            }
+
+            if (index < 0)
+            {
+                continue;
+            }
+
+            /* Mehrere Limbs koennen denselben Knochen beanspruchen: beim
+             * Standardmodell traegt bodywear die Rolle chest, ist aber ein Kind
+             * von body. Die Koerperdrehung gehoert an body, nicht an die
+             * Kleiderschicht - also gewinnt immer das wurzelnaechste Limb.
+             * (this.limbs kommt aus einer HashMap, die Reihenfolge allein waere
+             * nicht einmal stabil.) */
+            if (limbs[index] == null || depth(limb) < depth(limbs[index]))
+            {
+                limbs[index] = limb;
+            }
+        }
+
+        for (int i = 0; i < bones.length; i++)
+        {
+            if (limbs[i] == null) continue;
+
+            bones[i].rotateAngleX = limbs[i].rotateAngleX;
+            bones[i].rotateAngleY = limbs[i].rotateAngleY;
+            bones[i].rotateAngleZ = limbs[i].rotateAngleZ;
+        }
+
+        mchorse.blockbuster.recording.mwf.MWFCompat.applyMovementAngles(this, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scaleFactor, entityIn);
+        mchorse.blockbuster.recording.dynamx.DynamXCompat.applyDrivingArms(this, entityIn);
+
+        for (int i = 0; i < bones.length; i++)
+        {
+            if (limbs[i] == null) continue;
+
+            limbs[i].rotateAngleX = bones[i].rotateAngleX;
+            limbs[i].rotateAngleY = bones[i].rotateAngleY;
+            limbs[i].rotateAngleZ = bones[i].rotateAngleZ;
+        }
+    }
+
+    private static int depth(ModelCustomRenderer limb)
+    {
+        int result = 0;
+
+        for (ModelCustomRenderer current = limb.parent; current != null; current = current.parent)
+        {
+            result++;
+        }
+
+        return result;
+    }
+
+    /**
+     * Fallback fuer Modelle, die gar keine Ruestungsrollen vergeben - die
+     * Standardnamen der Blockbuster-Modelle.
+     */
+    private static int boneIndexByName(String name)
+    {
+        if (name.equals("head")) return 0;
+        if (name.equals("body")) return 1;
+        if (name.equals("left_arm")) return 2;
+        if (name.equals("right_arm")) return 3;
+        if (name.equals("left_leg")) return 4;
+        if (name.equals("right_leg")) return 5;
+
+        return -1;
+    }
+
+    /**
+     * Which biped bone an armor role belongs to, or -1 for none.
+     */
+    private static int boneIndex(mchorse.blockbuster.api.ModelLimb.ArmorSlot slot)
+    {
+        switch (slot)
+        {
+            case HEAD:           return 0;
+            case CHEST:
+            case LEGGINGS:       return 1;
+            case LEFT_SHOULDER:  return 2;
+            case RIGHT_SHOULDER: return 3;
+            case LEFT_LEG:
+            case LEFT_FOOT:      return 4;
+            case RIGHT_LEG:
+            case RIGHT_FOOT:     return 5;
+            default:             return -1;
         }
     }
 

@@ -232,6 +232,66 @@ public class VehicleMountAction extends MountingAction
         }
     }
 
+    /**
+     * Ohne das bleibt das Fahrzeug beim Verschieben einer Aufnahme
+     * (/record origin) an der alten Stelle stehen, waehrend der Actor
+     * umzieht - startX/Y/Z und startYaw sind absolute Weltkoordinaten.
+     */
+    @Override
+    public void changeOrigin(double rotation, double newX, double newY, double newZ, double firstX, double firstY, double firstZ)
+    {
+        if (!this.hasStartPose)
+        {
+            return;
+        }
+
+        double dx = this.startX - firstX;
+        double dy = this.startY - firstY;
+        double dz = this.startZ - firstZ;
+
+        if (rotation != 0)
+        {
+            float cos = (float) Math.cos(rotation / 180 * Math.PI);
+            float sin = (float) Math.sin(rotation / 180 * Math.PI);
+
+            double xx = dx * cos - dz * sin;
+            double zz = dx * sin + dz * cos;
+
+            dx = xx;
+            dz = zz;
+
+            this.startYaw += rotation;
+        }
+
+        this.startX = newX + dx;
+        this.startY = newY + dy;
+        this.startZ = newZ + dz;
+    }
+
+    /**
+     * Dasselbe fuer /record flip: gespiegelt wird die Position, und die
+     * Gierung muss mitgespiegelt werden, sonst steht das Auto verkehrt herum.
+     */
+    @Override
+    public void flip(String axis, double coordinate)
+    {
+        if (!this.hasStartPose)
+        {
+            return;
+        }
+
+        if (axis.equals("x"))
+        {
+            this.startX = coordinate + (coordinate - this.startX);
+            this.startYaw = -this.startYaw;
+        }
+        else
+        {
+            this.startZ = coordinate + (coordinate - this.startZ);
+            this.startYaw = 180F - this.startYaw;
+        }
+    }
+
     @Override
     public void fromBuf(ByteBuf buf)
     {
