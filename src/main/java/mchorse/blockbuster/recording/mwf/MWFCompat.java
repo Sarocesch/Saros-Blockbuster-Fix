@@ -655,14 +655,17 @@ public final class MWFCompat
     private static boolean slotsResolved = false;
     private static boolean slotsAvailable = false;
     private static Object extraCapability;
+    private static boolean slotReadFailed;
 
     /** Slot index of the body vest, matching MWF's own RenderLayerBody. */
     public static final int SLOT_VEST = 1;
 
     private static boolean initSlots()
     {
-        if (slotsResolved) return slotsAvailable;
-        slotsResolved = true;
+        /* Bewusst KEIN dauerhaftes Merken eines Fehlschlags: CAPABILITY wird
+         * von Forge per @CapabilityInject erst nach der Registrierung gefuellt.
+         * Wer zu frueh nachsieht, hat sonst fuer immer null stehen. */
+        if (extraCapability != null) return true;
 
         try
         {
@@ -670,13 +673,68 @@ public final class MWFCompat
 
             extraCapability = classCapabilityExtra.getField("CAPABILITY").get(null);
             slotsAvailable = extraCapability != null;
+
+            if (!slotsAvailable && !slotsResolved)
+            {
+                slotsResolved = true;
+                System.out.println("[Blockbuster] MWF Extra-Slots: CAPABILITY ist noch null");
+            }
         }
         catch (Throwable t)
         {
             slotsAvailable = false;
+
+            if (!slotsResolved)
+            {
+                slotsResolved = true;
+                System.out.println("[Blockbuster] MWF Extra-Slots nicht erreichbar: " + t);
+            }
         }
 
         return slotsAvailable;
+    }
+
+    /**
+     * Was steckt gerade in den MWF-Extra-Slots? Nennt beim Fehlschlag den
+     * Grund statt still nichts zu liefern - genau daran laesst sich sonst
+     * nicht unterscheiden, ob keine Weste getragen wird oder das Auslesen
+     * scheitert.
+     */
+    public static String describeExtraSlots(Entity entity)
+    {
+        if (entity == null) return "<keine Entity>";
+        if (!initSlots()) return "<Capability nicht aufloesbar>";
+
+        try
+        {
+            Capability<?> capability = (Capability<?>) extraCapability;
+
+            if (!entity.hasCapability(capability, null)) return "<Entity hat die Capability nicht>";
+
+            Object handler = entity.getCapability(capability, null);
+
+            if (handler == null) return "<Handler ist null>";
+
+            Method slotCount = handler.getClass().getMethod("getSlots");
+            Method getStack = handler.getClass().getMethod("getStackInSlot", int.class);
+            int count = ((Integer) slotCount.invoke(handler)).intValue();
+            StringBuilder result = new StringBuilder(handler.getClass().getSimpleName() + "[" + count + "]");
+
+            for (int i = 0; i < count; i++)
+            {
+                Object stack = getStack.invoke(handler, Integer.valueOf(i));
+                boolean empty = !(stack instanceof ItemStack) || ((ItemStack) stack).isEmpty();
+
+                result.append(" ").append(i).append("=");
+                result.append(empty ? "-" : ((ItemStack) stack).getItem().getClass().getSimpleName() + "/" + ((ItemStack) stack).getItem().getRegistryName());
+            }
+
+            return result.toString();
+        }
+        catch (Throwable t)
+        {
+            return "<Fehler: " + t + ">";
+        }
     }
 
     /**
@@ -705,7 +763,14 @@ public final class MWFCompat
 
             return stack instanceof ItemStack ? (ItemStack) stack : ItemStack.EMPTY;
         }
-        catch (Throwable ignored) {}
+        catch (Throwable t)
+        {
+            if (!slotReadFailed)
+            {
+                slotReadFailed = true;
+                System.out.println("[Blockbuster] MWF Extra-Slot " + slot + " nicht lesbar: " + t);
+            }
+        }
 
         return ItemStack.EMPTY;
     }

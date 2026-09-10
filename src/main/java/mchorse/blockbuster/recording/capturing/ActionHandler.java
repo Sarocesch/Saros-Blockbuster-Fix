@@ -684,8 +684,8 @@ public class ActionHandler
                 /* Einmal je Aufnahme sagen, was wirklich in den Slots liegt.
                  * Ohne das laesst sich nicht unterscheiden, ob die Weste nicht
                  * uebertragen wird oder schlicht keine getragen wurde. */
-                System.out.println("[Blockbuster] Aufnahme MWF: extraSlot=" + (current.isEmpty() ? "<leer>" : current.getItem().getClass().getSimpleName() + "/" + current.getItem().getRegistryName())
-                        + " chest=" + describe(player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST)));
+                System.out.println("[Blockbuster] Aufnahme MWF: chest=" + describe(player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST))
+                        + " | alle Extra-Slots: " + MWFCompat.describeExtraSlots(player));
             }
 
             if (previous != null && ItemStack.areItemStacksEqual(previous, current)) return;
