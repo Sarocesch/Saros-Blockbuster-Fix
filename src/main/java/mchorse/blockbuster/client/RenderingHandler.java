@@ -652,7 +652,100 @@ public class RenderingHandler
         if (event.phase == TickEvent.Phase.END)
         {
             DetachedModelBlocks.tick();
+            closeStrayVehicleHud();
         }
+    }
+
+    /* --- Haengengebliebener DynamX-Tacho -----------------------------------
+     *
+     * DynamX oeffnet das Fahrzeug-HUD beim Einsteigen und schliesst es NUR ueber
+     * das Aussteige-Ereignis aus der Sitz-Synchronisation. Faellt das aus - etwa
+     * weil das Fahrzeug im selben Moment aus der Welt genommen wird - bleibt der
+     * Tacho bis zum Weltneustart im Bild stehen und stapelt sich bei jedem
+     * weiteren Durchlauf.
+     *
+     * Deshalb hier ein Waechter statt Vertrauen in die Reihenfolge: sitzt der
+     * Spieler nachweislich in keinem DynamX-Fahrzeug, wird jedes offene
+     * Fahrzeug-HUD geschlossen - auch mehrere gestapelte. */
+
+    private static boolean hudResolved;
+    private static java.lang.reflect.Method methodCloseHud;
+    private static Class<?> classVehicleHud;
+    private static int hudGrace;
+
+    private static void closeStrayVehicleHud()
+    {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+
+        if (mc.player == null || mc.world == null)
+        {
+            return;
+        }
+
+        if (mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mc.player.getRidingEntity()))
+        {
+            /* Sitzt drin - alles in Ordnung, und nach dem Aussteigen erst einmal
+             * ein paar Ticks Ruhe lassen, damit DynamX selbst aufraeumen kann. */
+            hudGrace = 20;
+
+            return;
+        }
+
+        if (hudGrace > 0)
+        {
+            hudGrace--;
+
+            return;
+        }
+
+        if (!resolveHud())
+        {
+            return;
+        }
+
+        try
+        {
+            /* closeHudGui meldet true, wenn es eines geschlossen hat - so lange
+             * wiederholen, bis auch gestapelte weg sind. */
+            for (int i = 0; i < 8; i++)
+            {
+                Object closed = methodCloseHud.invoke(null, classVehicleHud);
+
+                if (!Boolean.TRUE.equals(closed))
+                {
+                    break;
+                }
+
+                System.out.println("[Blockbuster] Haengengebliebenen Fahrzeug-Tacho geschlossen");
+            }
+        }
+        catch (Throwable ignored)
+        {}
+    }
+
+    private static boolean resolveHud()
+    {
+        if (hudResolved)
+        {
+            return methodCloseHud != null;
+        }
+
+        hudResolved = true;
+
+        try
+        {
+            classVehicleHud = Class.forName("fr.dynamx.client.gui.VehicleHud");
+
+            Class<?> api = Class.forName("fr.aym.acsguis.api.ACsGuiApi");
+
+            methodCloseHud = api.getMethod("closeHudGui", Class.class);
+        }
+        catch (Throwable t)
+        {
+            methodCloseHud = null;
+        }
+
+        return methodCloseHud != null;
     }
 
     @SubscribeEvent

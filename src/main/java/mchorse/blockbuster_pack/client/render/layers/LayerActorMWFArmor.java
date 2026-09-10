@@ -72,10 +72,16 @@ public class LayerActorMWFArmor implements LayerRenderer<EntityLivingBase>
         if (stack == null || stack.isEmpty())
         {
             VESTS.remove(entityId);
+            System.out.println("[Blockbuster] Weste fuer Actor " + entityId + " entfernt");
         }
         else
         {
             VESTS.put(entityId, stack);
+            System.out.println("[Blockbuster] Weste fuer Actor " + entityId + " angekommen: " + stack.getItem().getClass().getSimpleName() + "/" + stack.getItem().getRegistryName());
+
+            /* Der Bericht wird beim ersten Bild gedruckt, oft bevor die Weste da
+             * ist. Zuruecksetzen, damit die naechste Zeile den echten Stand zeigt. */
+            REPORTED.remove(entityId);
         }
     }
 
