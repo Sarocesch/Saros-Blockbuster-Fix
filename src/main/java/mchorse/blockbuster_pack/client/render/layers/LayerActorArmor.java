@@ -294,7 +294,7 @@ public class LayerActorArmor extends LayerArmorBase<ModelBiped>
      * role may well be a hidden one (the outer skin layer), and skipping the
      * transform would drop the piece at the model's origin.
      */
-    private static void applyLimbChain(ModelCustomRenderer limb, float scale)
+    static void applyLimbChain(ModelCustomRenderer limb, float scale)
     {
         if (limb.parent != null)
         {

@@ -211,14 +211,31 @@ public class LayerActorMWFArmor implements LayerRenderer<EntityLivingBase>
 
         try
         {
-            if (entity.isSneaking())
-            {
-                GlStateManager.translate(0.0F, 0.2F, 0.0F);
-            }
+            mchorse.blockbuster.client.model.ModelCustomRenderer bodyLimb =
+                    model instanceof mchorse.blockbuster.client.model.ModelCustom
+                            ? ((mchorse.blockbuster.client.model.ModelCustom) model).limbForBone(1)
+                            : null;
 
-            /* Anchor on the body bone the same way MWF does, so every pose the
-             * actor is in carries the vest instead of leaving it in the air. */
-            methodPostRender.invoke(null, model.bipedBody, 0.0625F);
+            if (bodyLimb != null)
+            {
+                /* Am echten Koerper-Limb samt Elternkette verankern. MWFs Helfer
+                 * setzt nur den einen Vanilla-Knochen bipedBody - den bewegt ein
+                 * Custom-Modell nie, deshalb blieb die Weste bei jeder eigenen
+                 * Pose stehen. Der Sneak-Ausgleich entfaellt hier: der gleicht
+                 * nur die Absenkung des Vanilla-Modells aus, ein Custom-Modell
+                 * senkt sich ueber seine Pose (derselbe Fehler wie bei der Waffe). */
+                LayerActorArmor.applyLimbChain(bodyLimb, 0.0625F);
+            }
+            else
+            {
+                if (entity.isSneaking())
+                {
+                    GlStateManager.translate(0.0F, 0.2F, 0.0F);
+                }
+
+                /* Anchor on the body bone the same way MWF does. */
+                methodPostRender.invoke(null, model.bipedBody, 0.0625F);
+            }
 
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             GlStateManager.enableRescaleNormal();

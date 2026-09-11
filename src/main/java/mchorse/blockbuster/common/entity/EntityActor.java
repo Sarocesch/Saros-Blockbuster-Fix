@@ -286,9 +286,51 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
      *
      * See process actions method for more information.
      */
+    /**
+     * Soll dieser Actor am Ende stehen bleiben, statt sich selbst zu beenden?
+     */
+    private boolean holdsLastFrame()
+    {
+        if (this.playback == null || this.playback.realPlayer)
+        {
+            return false;
+        }
+
+        mchorse.blockbuster.recording.scene.Replay replay = this.playback.getReplay();
+
+        return replay != null && (replay.freezeAtEnd || (replay.idleRecord != null && !replay.idleRecord.isEmpty()));
+    }
+
+    /**
+     * Einmal pro Sekunde auf dem CLIENT melden, wie der Actor dort bewegt wird.
+     *
+     * <p>Andere Spieler sahen einen laufenden Actor stehen, beim Pausieren sprang er an
+     * die richtige Stelle. Der Code ist fuer alle Clients gleich - der Unterschied
+     * steckt also in der Umgebung. Diese Zeile zeigt ihn: kommen Serverpositionen an
+     * (interp), wohin sollen sie (ziel), reitet der Actor auf etwas, hat der Client
+     * die Aufnahme. Fehlt die Zeile im Log eines Mitspielers ganz, laeuft bei ihm
+     * eine alte Blockbuster-Jar.</p>
+     */
+    private void reportClientMovement()
+    {
+        if (!this.world.isRemote || this.playback == null || this.ticksExisted % 20 != 0)
+        {
+            return;
+        }
+
+        System.out.println(String.format(java.util.Locale.ROOT,
+                "[Blockbuster 11.09] Actor %d (Client): pos=%.2f/%.2f/%.2f interp=%d ziel=%.2f/%.2f/%.2f reitet=%s aufnahme=%s spielt=%s tick=%d",
+                this.getEntityId(), this.posX, this.posY, this.posZ,
+                this.newPosRotationIncrements, this.interpTargetX, this.interpTargetY, this.interpTargetZ,
+                this.getRidingEntity() == null ? "-" : this.getRidingEntity().getClass().getSimpleName() + "#" + this.getRidingEntity().getEntityId(),
+                this.playback.record != null, this.playback.playing, this.playback.tick));
+    }
+
     @Override
     public void onLivingUpdate()
     {
+        this.reportClientMovement();
+
         if (!this.world.isRemote && this.playback != null && this.playback.playing && !this.manual)
         {
             int tick = this.playback.tick;
@@ -299,6 +341,19 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
                 {
                     /* Idle-Schleife: wieder von vorn, statt stehen zu bleiben. */
                     this.playback.tick = 0;
+                }
+                else if (this.holdsLastFrame())
+                {
+                    /* Letztes Bild halten und die Szene entscheiden lassen.
+                     *
+                     * Vorher beendete sich jeder Actor hier selbst, mit dem kill,
+                     * das beim Start gesetzt wurde (= loescht ihn). Die Szene setzt
+                     * kill fuer Freeze erst dann auf false, wenn ALLE Actors fertig
+                     * sind. Wer zuerst fertig war, war zu dem Zeitpunkt schon weg -
+                     * deshalb verschwand bei zwei Actors einer trotz Freeze at end.
+                     * next() tut bei einer fertigen Wiedergabe nichts mehr, der
+                     * Actor steht also einfach im letzten Bild, und die Szene
+                     * zaehlt ihn weiter als fertig. */
                 }
                 else
                 {
