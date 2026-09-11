@@ -202,25 +202,15 @@ public class Frame
         /* Inject frame's values into actor */
         if (!isRemote || force)
         {
-            /* Die aufgezeichnete Position wird IMMER erzwungen, auch bei einem
-             * DynamX-Fahrzeug.
-             *
-             * Ich hatte das fuer Fahrzeuge einmal ausgelassen, weil Physik und
-             * erzwungene Position sich jeden Tick bekaempften und das Auto
-             * zitterte. Das Ergebnis war schlimmer: ohne Zwang faehrt die Physik
-             * ihre eigene Linie, und die Wiedergabe landet woanders als die
-             * Aufnahme. Ein Dreh braucht die exakte Bahn, nicht eine plausible. */
-            mount.setPosition(this.x, this.y, this.z);
-
-            if (force)
+            /* Einem DynamX-Fahrzeug NICHT die aufgezeichnete Position
+             * aufzwingen. Es rechnet seine eigene Physik, und die
+             * abgespielten Lenkbefehle fahren es ohnehin - beides zusammen
+             * riss es jeden Tick hin und her, sichtbar als starkes Zittern in
+             * den ersten Sekunden. Der Actor selbst wird weiter gesetzt, der
+             * sitzt dann sauber auf dem Sitz. */
+            if (mount == actor || !mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mount))
             {
-                /* Beim Setzen von aussen - Start der Wiedergabe, Sprung im
-                 * Zeitstrahl - die Vorwerte mitziehen. Sonst interpoliert der
-                 * Client aus der alten Position heran, und genau das war das
-                 * Rucken in den ersten Sekunden. */
-                mount.prevPosX = mount.lastTickPosX = this.x;
-                mount.prevPosY = mount.lastTickPosY = this.y;
-                mount.prevPosZ = mount.lastTickPosZ = this.z;
+                mount.setPosition(this.x, this.y, this.z);
             }
         }
 
