@@ -258,6 +258,41 @@ public class ActionHandler
     }
 
     /**
+     * Steigt ein echter Spieler in ein gerade kinematisch gefuehrtes Fahrzeug, geht
+     * es sofort an die Physik zurueck - sonst liesse es sich nicht fahren. Laeuft auf
+     * beiden Seiten; im Einzelspieler rechnet der Client die Physik.
+     */
+    @SubscribeEvent
+    public void onEntityMount(net.minecraftforge.event.entity.EntityMountEvent event)
+    {
+        if (!event.isMounting() || !(event.getEntityMounting() instanceof EntityPlayer))
+        {
+            return;
+        }
+
+        /* Wer gerade abgespielt wird, ist kein Mensch - auch nicht, wenn er als
+         * Fake Player ein EntityPlayer ist. Dessen Einsteigen darf das Auto nicht
+         * freigeben, es soll ja auf der Bahn gefuehrt werden. */
+        if (mchorse.blockbuster.utils.EntityUtils.getRecordPlayer((EntityPlayer) event.getEntityMounting()) != null)
+        {
+            return;
+        }
+
+        if (!mchorse.blockbuster.recording.dynamx.DynamXCompat.isAvailable())
+        {
+            return;
+        }
+
+        net.minecraft.entity.Entity vehicle = event.getEntityBeingMounted();
+
+        if (mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(vehicle)
+            && mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.isPinned(vehicle))
+        {
+            mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.unpin(vehicle);
+        }
+    }
+
+    /**
      * Rechtsklick mit einer MWF-Waffe ist ZIELEN, kein Benutzen.
      *
      * <p>Ohne diese Unterscheidung landete jedes Zielen als Block-Interaktion in

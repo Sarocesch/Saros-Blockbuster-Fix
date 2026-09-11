@@ -50,6 +50,22 @@ public class Frame
     public float mountYaw;
     public float mountPitch;
 
+    /* Transform eines DynamX-Fahrzeugs, RELATIV gespeichert: vx/vy/vz sind der
+     * Versatz zu x/y/z, vq* die Rotation ohne die Gier yaw. So ziehen /record
+     * origin, /record flip und jedes Werkzeug, das x/y/z und yaw bearbeitet, das
+     * Auto automatisch mit. Nur gesetzt, wenn beim Aufnehmen in einem
+     * DynamX-Fahrzeug gesessen wurde.
+     * Damit faehrt das Auto beim Abspielen exakt die aufgenommene Bahn, statt
+     * dass die Physik aus den Steuertasten eine eigene Linie faehrt. */
+    public boolean hasVehicle;
+    public float vx;
+    public float vy;
+    public float vz;
+    public float vqx;
+    public float vqy;
+    public float vqz;
+    public float vqw = 1F;
+
     public boolean isMounted;
 
     /* Motion */
@@ -105,6 +121,27 @@ public class Frame
         {
             this.mountYaw = mount.rotationYaw;
             this.mountPitch = mount.rotationPitch;
+        }
+
+        this.hasVehicle = false;
+
+        if (this.isMounted && mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mount))
+        {
+            float[] transform = mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.readTransform(mount);
+
+            if (transform != null)
+            {
+                float[] q = yawTimes(-this.yaw, transform[3], transform[4], transform[5], transform[6]);
+
+                this.hasVehicle = true;
+                this.vx = (float) (transform[0] - this.x);
+                this.vy = (float) (transform[1] - this.y);
+                this.vz = (float) (transform[2] - this.z);
+                this.vqx = q[0];
+                this.vqy = q[1];
+                this.vqz = q[2];
+                this.vqw = q[3];
+            }
         }
 
         /* Motion and fall distance */
@@ -211,6 +248,36 @@ public class Frame
             if (mount == actor || !mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mount))
             {
                 mount.setPosition(this.x, this.y, this.z);
+            }
+        }
+
+        /* DynamX-Fahrzeug kinematisch auf die aufgenommene Bahn, auf Server UND
+         * Client. Clients uebernehmen Serverpositionen nur bei aktivem Koerper, ein
+         * kinematischer ist das nicht - deshalb nagelt jede Seite ihr eigenes
+         * Exemplar fest. Jeder Client spielt die Aufnahme ohnehin selbst mit. */
+        if (mchorse.blockbuster.recording.dynamx.DynamXCompat.isAvailable())
+        {
+            if (this.isMounted && mount != actor && mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mount))
+            {
+                if (this.hasVehicle)
+                {
+                    float[] q = yawTimes(this.yaw, this.vqx, this.vqy, this.vqz, this.vqw);
+
+                    mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.pin(actor, mount,
+                        (float) (this.x + this.vx), (float) (this.y + this.vy), (float) (this.z + this.vz),
+                        q[0], q[1], q[2], q[3]);
+                }
+                else
+                {
+                    /* Alte Aufnahme ohne Transform: x/y/z sind schon die
+                     * Fahrzeugposition, Rotation aus Gier und Neigung. */
+                    mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.pinFromYawPitch(actor, mount,
+                        (float) this.x, (float) this.y, (float) this.z, this.mountYaw, this.mountPitch);
+                }
+            }
+            else
+            {
+                mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.release(actor);
             }
         }
 
@@ -344,6 +411,15 @@ public class Frame
             frame.mountPitch = this.mountPitch;
         }
 
+        frame.hasVehicle = this.hasVehicle;
+        frame.vx = this.vx;
+        frame.vy = this.vy;
+        frame.vz = this.vz;
+        frame.vqx = this.vqx;
+        frame.vqy = this.vqy;
+        frame.vqz = this.vqz;
+        frame.vqw = this.vqw;
+
         frame.motionX = this.motionX;
         frame.motionY = this.motionY;
         frame.motionZ = this.motionZ;
@@ -412,6 +488,19 @@ public class Frame
         buf.writeInt(this.hotbarSlot);
         buf.writeInt(this.foodLevel);
         buf.writeInt(this.totalExperience);
+
+        buf.writeBoolean(this.hasVehicle);
+
+        if (this.hasVehicle)
+        {
+            buf.writeFloat(this.vx);
+            buf.writeFloat(this.vy);
+            buf.writeFloat(this.vz);
+            buf.writeFloat(this.vqx);
+            buf.writeFloat(this.vqy);
+            buf.writeFloat(this.vqz);
+            buf.writeFloat(this.vqw);
+        }
     }
 
     public void fromBytes(ByteBuf buf)
@@ -456,6 +545,19 @@ public class Frame
         this.hotbarSlot = buf.readInt();
         this.foodLevel = buf.readInt();
         this.totalExperience = buf.readInt();
+
+        this.hasVehicle = buf.readBoolean();
+
+        if (this.hasVehicle)
+        {
+            this.vx = buf.readFloat();
+            this.vy = buf.readFloat();
+            this.vz = buf.readFloat();
+            this.vqx = buf.readFloat();
+            this.vqy = buf.readFloat();
+            this.vqz = buf.readFloat();
+            this.vqw = buf.readFloat();
+        }
     }
 
     /**
@@ -511,6 +613,20 @@ public class Frame
         tag.setInteger("HotbarSlot", this.hotbarSlot);
         tag.setInteger("FoodLevel", this.foodLevel);
         tag.setInteger("TotalExperience", this.totalExperience);
+
+        if (this.hasVehicle)
+        {
+            NBTTagCompound vehicle = new NBTTagCompound();
+
+            vehicle.setFloat("X", this.vx);
+            vehicle.setFloat("Y", this.vy);
+            vehicle.setFloat("Z", this.vz);
+            vehicle.setFloat("QX", this.vqx);
+            vehicle.setFloat("QY", this.vqy);
+            vehicle.setFloat("QZ", this.vqz);
+            vehicle.setFloat("QW", this.vqw);
+            tag.setTag("Veh", vehicle);
+        }
     }
 
     /**
@@ -566,6 +682,34 @@ public class Frame
         this.hotbarSlot = tag.hasKey("HotbarSlot") ? tag.getInteger("HotbarSlot") : this.hotbarSlot;
         this.foodLevel = tag.hasKey("FoodLevel") ? tag.getInteger("FoodLevel") : this.foodLevel;
         this.totalExperience = tag.hasKey("TotalExperience") ? tag.getInteger("TotalExperience") : this.totalExperience;
+
+        if (tag.hasKey("Veh"))
+        {
+            NBTTagCompound vehicle = tag.getCompoundTag("Veh");
+
+            this.hasVehicle = true;
+            this.vx = vehicle.getFloat("X");
+            this.vy = vehicle.getFloat("Y");
+            this.vz = vehicle.getFloat("Z");
+            this.vqx = vehicle.getFloat("QX");
+            this.vqy = vehicle.getFloat("QY");
+            this.vqz = vehicle.getFloat("QZ");
+            this.vqw = vehicle.getFloat("QW");
+        }
+    }
+
+    /**
+     * Gier-Drehung von links an eine Quaternion multiplizieren, gleichsinnig mit
+     * yaw += degrees. DynamX rechnet Gier als Drehung um die Hochachse mit -yaw
+     * (DynamXGeometry.eulerToQuaternion).
+     */
+    private static float[] yawTimes(double degrees, float qx, float qy, float qz, float qw)
+    {
+        double half = Math.toRadians(-degrees) / 2;
+        float ry = (float) Math.sin(half);
+        float rw = (float) Math.cos(half);
+
+        return new float[] {rw * qx + ry * qz, rw * qy + ry * qw, rw * qz - ry * qx, rw * qw - ry * qy};
     }
 
     public enum RotationChannel

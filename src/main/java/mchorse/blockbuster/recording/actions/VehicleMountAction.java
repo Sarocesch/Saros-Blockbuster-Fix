@@ -263,6 +263,9 @@ public class VehicleMountAction extends MountingAction
      * - Respawns it from NBT snapshot if it was destroyed
      * - Stops the engine (controls=0) so it comes to rest
      */
+    /** Wann welche Fahrzeug-UUID zuletzt zurueckgesetzt wurde (Welt-Tick). */
+    private static final java.util.Map<java.util.UUID, Long> RESET_TICK = new java.util.HashMap<java.util.UUID, Long>();
+
     public static void resetVehicles(Record record, World world)
     {
         if (record == null || world == null || world.isRemote) return;
@@ -276,6 +279,17 @@ public class VehicleMountAction extends MountingAction
             {
                 if (!(action instanceof VehicleMountAction)) continue;
                 VehicleMountAction mount = (VehicleMountAction) action;
+
+                /* Jeder Actor setzt beim Start seine eigenen Fahrzeuge zurueck. Nutzen
+                 * zwei Aufnahmen dieselbe Fahrzeug-UUID, setzten beide im selben Tick
+                 * dasselbe Auto zurueck - und es landete an der Startpose des
+                 * anderen. Pro UUID und Tick nur einmal. */
+                long now = world.getTotalWorldTime();
+                Long done = RESET_TICK.get(mount.target);
+
+                if (done != null && done.longValue() == now) continue;
+
+                RESET_TICK.put(mount.target, Long.valueOf(now));
                 if (!mount.hasStartPose) continue;
                 if (!mount.isMounting) continue; /* only first mount carries snapshot */
 
