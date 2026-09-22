@@ -26,6 +26,10 @@ public class ClientHandlerActions extends ClientMessageHandler<PacketActions>
         {
             record.actions = message.actions;
 
+            /* Skins aller Skin-/Modellwechsel jetzt schon laden, nicht erst im
+             * Moment des Wechsels - sonst ist der Actor dort kurz schwarz. */
+            mchorse.blockbuster.client.textures.URLDownloadThread.prefetchActions(message.actions);
+
             if (ClientProxy.panels.recordingEditorPanel != null && message.open)
             {
                 ClientProxy.panels.recordingEditorPanel.selectRecord(record);

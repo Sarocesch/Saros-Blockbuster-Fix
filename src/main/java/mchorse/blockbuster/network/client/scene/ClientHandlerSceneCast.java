@@ -29,6 +29,19 @@ public class ClientHandlerSceneCast extends ClientMessageHandler<PacketSceneCast
 
         boolean opened = message.open && screen == null;
 
+        /* Skins der Replays vorladen, damit ein im Editor gewechselter Skin
+         * nicht erst beim Actor schwarz aufblitzt. */
+        if (message.location != null && message.location.getScene() != null)
+        {
+            for (mchorse.blockbuster.recording.scene.Replay replay : message.location.getScene().replays)
+            {
+                if (replay.morph != null)
+                {
+                    mchorse.blockbuster.client.textures.URLDownloadThread.prefetch(replay.morph.toNBT());
+                }
+            }
+        }
+
         if (opened)
         {
             panels.scenePanel.openScene(message.location);

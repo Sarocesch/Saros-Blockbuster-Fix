@@ -2,9 +2,11 @@ package mchorse.blockbuster.recording.dynamx;
 
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
+import fr.dynamx.api.entities.IModuleContainer;
 import fr.dynamx.api.physics.IPhysicsWorld;
 import fr.dynamx.common.DynamXContext;
 import fr.dynamx.common.entities.PhysicsEntity;
+import fr.dynamx.common.entities.modules.SeatsModule;
 import fr.dynamx.common.physics.entities.AbstractEntityPhysicsHandler;
 import net.minecraft.entity.Entity;
 
@@ -86,6 +88,17 @@ public final class DynamXVehiclePin
 
         PhysicsEntity<?> entity = (PhysicsEntity<?>) vehicle;
         int side = side(vehicle);
+
+        if (!steers(actor, vehicle, side))
+        {
+            if (DRIVEN[side].get(actor) == vehicle)
+            {
+                DRIVEN[side].remove(actor);
+            }
+
+            return;
+        }
+
         float[] previous = LAST[side].get(vehicle);
         Vector3f velocity = new Vector3f();
 
@@ -112,6 +125,42 @@ public final class DynamXVehiclePin
         DRIVEN[side].put(actor, vehicle);
 
         apply(entity, new Vector3f(x, y, z), new Quaternion(qx, qy, qz, qw), velocity, true);
+    }
+
+    /**
+     * Darf dieser Actor das Fahrzeug fuehren? Es darf immer nur einer.
+     *
+     * <p>Sassen zwei Actors im selben Auto, nagelte jeder es mit seiner eigenen
+     * Aufnahme fest - der Beifahrer mit der Bahn aus seinem Aufnahmedurchgang, die
+     * ein Stueck neben der des Fahrers liegt. Das Auto sprang jeden Tick zwischen
+     * beiden hin und her. Jetzt faehrt nur, wer auf dem Fahrersitz sitzt. Ein
+     * Beifahrer sitzt einfach auf seinem Platz, dort setzt DynamX ihn jeden Tick hin.
+     * Ist der Fahrersitz leer, faehrt der erste Actor, bis er aussteigt.</p>
+     */
+    private static boolean steers(Entity actor, Entity vehicle, int side)
+    {
+        if (vehicle instanceof IModuleContainer.ISeatsContainer)
+        {
+            SeatsModule seats = ((IModuleContainer.ISeatsContainer) vehicle).getSeats();
+            Entity driver = seats == null ? null : seats.getControllingPassenger();
+
+            if (driver != null)
+            {
+                return driver == actor;
+            }
+        }
+
+        for (Map.Entry<Entity, Entity> entry : DRIVEN[side].entrySet())
+        {
+            Entity other = entry.getKey();
+
+            if (other != actor && entry.getValue() == vehicle && !other.isDead && other.getRidingEntity() == vehicle)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

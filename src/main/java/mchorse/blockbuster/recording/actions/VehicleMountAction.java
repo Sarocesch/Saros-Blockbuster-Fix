@@ -112,8 +112,14 @@ public class VehicleMountAction extends MountingAction
         {
             /* Teleport vehicle to start pose only if playback tick == mount tick.
              * This is the FIRST mount of this playback loop — reset so each
-             * loop starts from the same position. */
-            if (this.hasStartPose)
+             * loop starts from the same position.
+             *
+             * Nur wenn noch niemand drin sitzt und niemand es faehrt. Beim
+             * Teleport werden alle Insassen herausgesetzt - stieg der Beifahrer
+             * zu, flog der Fahrer-Actor aus dem Auto, lief neben/durch das Auto
+             * weiter, und das Auto sprang an die Pose des Beifahrers. */
+            if (this.hasStartPose && vehicle.getPassengers().isEmpty()
+                    && !mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.isPinned(vehicle))
             {
                 this.teleportVehicle(vehicle);
             }
@@ -156,12 +162,16 @@ public class VehicleMountAction extends MountingAction
         if (vehicle != null && !vehicle.isDead) return vehicle;
 
         /* Vehicle is missing or dead — try to respawn from snapshot */
-        if (this.vehicleSnapshot == null) return null;
+        NBTTagCompound snapshot = this.vehicleSnapshot != null ? this.vehicleSnapshot : SNAPSHOTS.get(this.target);
+
+        if (snapshot == null) return null;
 
         try
         {
             /* Clone snapshot so we don't mutate the persistent recording NBT */
-            NBTTagCompound tag = this.vehicleSnapshot.copy();
+            NBTTagCompound tag = snapshot.copy();
+
+            stripOccupants(tag);
 
             /* Override stored position with start pose (in case snapshot was stale) */
             net.minecraft.nbt.NBTTagList posList = new net.minecraft.nbt.NBTTagList();
@@ -266,6 +276,49 @@ public class VehicleMountAction extends MountingAction
     /** Wann welche Fahrzeug-UUID zuletzt zurueckgesetzt wurde (Welt-Tick). */
     private static final java.util.Map<java.util.UUID, Long> RESET_TICK = new java.util.HashMap<java.util.UUID, Long>();
 
+    /** Letzter bekannter Snapshot je Fahrzeug-UUID, aus irgendeiner Aufnahme oder frisch vom Auto. */
+    private static final java.util.Map<java.util.UUID, NBTTagCompound> SNAPSHOTS = new java.util.HashMap<java.util.UUID, NBTTagCompound>();
+
+    /**
+     * Sitzbelegung aus einem Snapshot entfernen.
+     *
+     * <p>DynamX traegt den Sitz ein, BEVOR das Einsteigen das EntityMountEvent
+     * ausloest (BasePartSeat.mountEntity) - der Snapshot, den die Aufnahme dort
+     * nimmt, enthaelt also "Seat&lt;id&gt;" mit der UUID des Aufnehmenden. Beim
+     * Neuaufbau setzte SeatsModule.readFromNBT diesen Spieler wieder in den Sitz,
+     * ohne dass er drin sass: DynamX zeichnete ihn dort als Klon mit.</p>
+     */
+    private static void stripOccupants(NBTTagCompound tag)
+    {
+        tag.removeTag("Passengers");
+
+        for (String key : new java.util.ArrayList<String>(tag.getKeySet()))
+        {
+            if (key.matches("Seat\\d+") && tag.getTagId(key) == net.minecraftforge.common.util.Constants.NBT.TAG_STRING)
+            {
+                tag.removeTag(key);
+            }
+        }
+    }
+
+    private static NBTTagCompound snapshotOf(Entity vehicle)
+    {
+        try
+        {
+            NBTTagCompound tag = new NBTTagCompound();
+
+            if (vehicle.writeToNBTOptional(tag))
+            {
+                stripOccupants(tag);
+
+                return tag;
+            }
+        }
+        catch (Throwable ignored) {}
+
+        return null;
+    }
+
     public static void resetVehicles(Record record, World world)
     {
         if (record == null || world == null || world.isRemote) return;
@@ -280,18 +333,25 @@ public class VehicleMountAction extends MountingAction
                 if (!(action instanceof VehicleMountAction)) continue;
                 VehicleMountAction mount = (VehicleMountAction) action;
 
+                if (!mount.hasStartPose) continue;
+                if (!mount.isMounting) continue; /* only first mount carries snapshot */
+
                 /* Jeder Actor setzt beim Start seine eigenen Fahrzeuge zurueck. Nutzen
                  * zwei Aufnahmen dieselbe Fahrzeug-UUID, setzten beide im selben Tick
                  * dasselbe Auto zurueck - und es landete an der Startpose des
-                 * anderen. Pro UUID und Tick nur einmal. */
+                 * anderen. Pro UUID und Tick nur einmal. Erst nach den Pruefungen
+                 * oben markieren, sonst sperrte eine Aussteige-Aktion das Einsteigen. */
                 long now = world.getTotalWorldTime();
                 Long done = RESET_TICK.get(mount.target);
 
                 if (done != null && done.longValue() == now) continue;
 
                 RESET_TICK.put(mount.target, Long.valueOf(now));
-                if (!mount.hasStartPose) continue;
-                if (!mount.isMounting) continue; /* only first mount carries snapshot */
+
+                if (mount.vehicleSnapshot != null)
+                {
+                    SNAPSHOTS.put(mount.target, mount.vehicleSnapshot);
+                }
 
                 Entity existing = EntityUtils.entityByUUID(world, mount.target);
 
@@ -317,6 +377,46 @@ public class VehicleMountAction extends MountingAction
                     {
                         System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": Spieler " + passenger.getName() + " ausgestiegen");
                     }
+                }
+
+                /* Ohne Snapshot laesst sich das Auto nicht neu aufbauen - geloescht
+                 * waere es dann fuer immer weg. Genau das passierte, sobald jemand
+                 * die Aufnahme im Editor bearbeitet hatte: Aktionen gehen als
+                 * Paket ohne Snapshot hin und her (toBuf), die bearbeitete Fassung
+                 * hatte keinen mehr, und der naechste Start loeschte das Auto.
+                 * Deshalb hier nachholen: aus einer anderen Aufnahme mit demselben
+                 * Auto, sonst frisch vom Auto selbst - und in der Aufnahme sichern. */
+                if (mount.vehicleSnapshot == null)
+                {
+                    NBTTagCompound known = SNAPSHOTS.get(mount.target);
+
+                    if (known == null)
+                    {
+                        known = snapshotOf(existing);
+                    }
+
+                    if (known != null)
+                    {
+                        mount.vehicleSnapshot = known;
+                        record.dirty = true;
+                        SNAPSHOTS.put(mount.target, known);
+                        System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": Snapshot in Aufnahme " + record.filename + " wiederhergestellt");
+                    }
+                }
+
+                if (mount.vehicleSnapshot == null)
+                {
+                    /* Letzter Ausweg: stehen lassen und nur zurueckstellen. */
+                    if (DynamXCompat.isVehicle(existing))
+                    {
+                        mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.unpin(existing);
+                    }
+
+                    mount.teleportVehicle(existing);
+                    DynamXCompat.setVehicleControls(existing, 0);
+                    System.out.println("[Blockbuster] Fahrzeug " + mount.target + ": kein Snapshot, nur zurueckgestellt statt neu gespawnt");
+
+                    continue;
                 }
 
                 /* Loeschen und neu aufstellen erst im naechsten Tick, damit die

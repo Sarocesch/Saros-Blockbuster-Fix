@@ -119,6 +119,9 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
      */
     public String leftoverScene = "";
 
+    /** Welt-Tick, zu dem die Szene diesen Actor stehen gelassen hat. */
+    public long leftoverSince;
+
     /**
      * Whether the control of playback should be manual 
      */
@@ -331,6 +334,17 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     {
         this.reportClientMovement();
 
+        /* Ein stehen gelassener Actor, der beim Szenenstart in einem entladenen
+         * Chunk lag, entging dem Aufraeumen. Kommt der Chunk zurueck, raeumt er
+         * sich selbst weg - sonst stapelten sich alte und neue Durchlaeufe. */
+        if (!this.world.isRemote && this.playback == null && !this.leftoverScene.isEmpty()
+                && mchorse.blockbuster.recording.scene.Scene.wasRestartedSince(this.leftoverScene, this.leftoverSince))
+        {
+            this.setDead();
+
+            return;
+        }
+
         if (!this.world.isRemote && this.playback != null && this.playback.playing && !this.manual)
         {
             int tick = this.playback.tick;
@@ -513,7 +527,19 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     {
         boolean shouldAutoAlign = true;
 
-        if (Blockbuster.actorPlaybackBodyYaw.get() && this.playback != null && this.playback.record != null)
+        if (this.isRiding() && mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(this.getRidingEntity()))
+        {
+            /* Im DynamX-Sitz zeichnet DynamX den Actor selbst, schon um das
+             * Fahrzeug gedreht, und erwartet Koerperdrehung 0 relativ zum Sitz
+             * (SeatsModule.applyOrientationToEntity). Die Aufnahme liefert aber
+             * eine Weltdrehung. Danach stand prev = Welt, aktuell = 0, und jedes
+             * Bild wurde zwischen beiden gedreht - das Zittern im Auto. Beide auf
+             * 0, dann passen auch alte Aufnahmen ohne Neuaufnahme. */
+            this.renderYawOffset = 0F;
+            this.prevRenderYawOffset = 0F;
+            shouldAutoAlign = false;
+        }
+        else if (Blockbuster.actorPlaybackBodyYaw.get() && this.playback != null && this.playback.record != null)
         {
             Frame previous = this.playback.record.getFrame(this.playback.getTick() - 1);
             Frame frame = this.playback.getCurrentFrame();
@@ -725,6 +751,7 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         this.enableBurning = tag.getBoolean("EnableBurning");
         this.wasAttached = tag.getBoolean("WasAttached");
         this.leftoverScene = tag.getString("LeftoverScene");
+        this.leftoverSince = tag.getLong("LeftoverSince");
 
         if (!this.world.isRemote)
         {
@@ -749,6 +776,7 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         if (!this.leftoverScene.isEmpty())
         {
             tag.setString("LeftoverScene", this.leftoverScene);
+            tag.setLong("LeftoverSince", this.leftoverSince);
         }
     }
 
@@ -757,7 +785,11 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     @Override
     public void writeSpawnData(ByteBuf buffer)
     {
-        if (this.wasAttached && this.playback == null)
+        /* Stehen gelassene Actors (Freeze/Idle) haben keine Wiedergabe mehr, sind
+         * aber gewollt da. Vorher traf sie diese Regel, sobald sie neu an einen
+         * Client gingen - wer aus der Sichtweite flog und zurueckkam, sah sie
+         * nicht mehr. Aufgeraeumt werden sie beim naechsten Szenenstart. */
+        if (this.wasAttached && this.playback == null && this.leftoverScene.isEmpty())
         {
             this.setDead();
         }

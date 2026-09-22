@@ -450,6 +450,21 @@ public class Scene
         }
     }
 
+    /**
+     * Wann welche Szene zuletzt gestartet wurde (Welt-Tick). Ein stehen gelassener
+     * Actor in einem gerade entladenen Chunk entgeht dem Aufraeumen beim Start und
+     * kommt erst beim Nachladen wieder. Mit dieser Tabelle erkennt er dann selbst,
+     * dass seine Szene inzwischen neu gelaufen ist.
+     */
+    private static final Map<String, Long> RESTARTED = new java.util.HashMap<String, Long>();
+
+    public static boolean wasRestartedSince(String scene, long since)
+    {
+        Long restarted = RESTARTED.get(scene);
+
+        return restarted != null && restarted.longValue() > since;
+    }
+
     private void clearFrozenActors()
     {
         for (EntityLivingBase actor : this.frozenActors)
@@ -478,6 +493,8 @@ public class Scene
         {
             return;
         }
+
+        RESTARTED.put(id, world.getTotalWorldTime());
 
         for (Entity entity : new java.util.ArrayList<Entity>(world.loadedEntityList))
         {
@@ -685,6 +702,7 @@ public class Scene
                 if (actor.actor instanceof EntityActor)
                 {
                     ((EntityActor) actor.actor).leftoverScene = this.getId();
+                    ((EntityActor) actor.actor).leftoverSince = this.getWorld().getTotalWorldTime();
                 }
             }
 

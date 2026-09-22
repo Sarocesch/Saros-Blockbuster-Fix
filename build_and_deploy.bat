@@ -88,6 +88,10 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/scene/Scene.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/scene/Replay.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/scene/SceneManager.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiScenePanel.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/textures/URLDownloadThread.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/ActorsPack.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/recording/actions/ClientHandlerActions.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/scene/ClientHandlerSceneCast.java"
 ) > "%SRCLIST%"
 
 echo === Compiling ===

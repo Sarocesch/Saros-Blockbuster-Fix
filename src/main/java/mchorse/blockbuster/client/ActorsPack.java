@@ -184,9 +184,28 @@ public class ActorsPack implements IResourcePack
         // ueber URLTextureUploader hochgeladen (wenige Uploads pro Tick statt alle in
         // einem Frame). Bis dahin dient das schwarze Pixel als Platzhalter; das Skin
         // poppt rein sobald geladen (danach von der TextureManager-Map gecacht).
+        byte[] cached = URLDownloadThread.cached(location);
+
+        if (cached == null && !Minecraft.getMinecraft().isCallingFromMinecraftThread())
+        {
+            /* Abseits des Render-Threads darf gewartet werden. Genau so liest
+             * mclib die Ebenen eines Multi-Skins (eigener Thread) - mit dem
+             * Platzhalter setzte es den Skin schwarz zusammen. */
+            cached = URLDownloadThread.loadNow(location);
+        }
+
         URLDownloadThread.startIfAbsent(location);
 
+        /* Schon einmal geladen (diese oder eine fruehere Sitzung): sofort das
+         * echte Bild. Der Download oben frischt es im Hintergrund auf. */
+        if (cached != null)
+        {
+            return new ByteArrayInputStream(cached);
+        }
+
         /* Black pixel placeholder until the async download finishes */
+        URLDownloadThread.markPlaceholder(location);
+
         return ActorsPack.class.getResourceAsStream("/assets/blockbuster/textures/blocks/black.png");
     }
 
