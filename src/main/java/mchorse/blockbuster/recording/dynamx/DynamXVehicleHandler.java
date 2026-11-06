@@ -4,8 +4,10 @@ import mchorse.blockbuster.CommonProxy;
 import mchorse.blockbuster.recording.actions.Action;
 import mchorse.blockbuster.recording.actions.VehicleBasicsAction;
 import mchorse.blockbuster.recording.actions.VehicleControlAction;
+import mchorse.blockbuster.recording.actions.VehicleHydraulicAction;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.nbt.NBTTagCompound;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +44,12 @@ public class DynamXVehicleHandler
     private final Map<UUID, Integer> lastBasics = new HashMap<UUID, Integer>();
 
     /**
+     * Last-known Hydraulic Addon state per recording player (aircraft gear,
+     * flaps, controls, Hydraulic_ parts, detached engines).
+     */
+    private final Map<UUID, NBTTagCompound> lastHydraulic = new HashMap<UUID, NBTTagCompound>();
+
+    /**
      * Called each server tick for each player currently being recorded.
      * If the player is driving a DynamX vehicle and its engine controls have
      * changed since the last check, a {@link VehicleControlAction} is added
@@ -60,6 +68,7 @@ public class DynamXVehicleHandler
             /* Not in a DynamX vehicle anymore — forget the last state. */
             this.lastControls.remove(id);
             this.lastBasics.remove(id);
+            this.lastHydraulic.remove(id);
             return;
         }
 
@@ -78,6 +87,34 @@ public class DynamXVehicleHandler
         }
 
         this.tickBasics(player, ridden, id);
+        this.tickHydraulic(player, ridden, id);
+    }
+
+    /**
+     * Capture the Hydraulic Addon state. Only the driver records it - a
+     * passenger replaying his own pass would fight the pilot over the gear.
+     */
+    private void tickHydraulic(EntityPlayer player, Entity ridden, UUID id)
+    {
+        if (ridden.getControllingPassenger() != player) return;
+
+        NBTTagCompound state = HydraulicCompat.capture(ridden);
+
+        if (state == null) return;
+
+        NBTTagCompound previous = this.lastHydraulic.get(id);
+
+        if (previous == null || !previous.equals(state))
+        {
+            List<Action> events = CommonProxy.manager.getActions(player);
+
+            if (events != null)
+            {
+                events.add(new VehicleHydraulicAction(state));
+            }
+
+            this.lastHydraulic.put(id, state);
+        }
     }
 
     /**
@@ -113,11 +150,13 @@ public class DynamXVehicleHandler
     {
         this.lastControls.remove(playerId);
         this.lastBasics.remove(playerId);
+        this.lastHydraulic.remove(playerId);
     }
 
     public void clearAll()
     {
         this.lastControls.clear();
         this.lastBasics.clear();
+        this.lastHydraulic.clear();
     }
 }

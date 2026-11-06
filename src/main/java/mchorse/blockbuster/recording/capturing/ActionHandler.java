@@ -160,6 +160,10 @@ public class ActionHandler
             tryRegisterCompat("com.modularwarfare.api.WeaponFireEvent",
                     "mchorse.blockbuster.recording.mwf.MWFCompatHandler",
                     "MWF detected — cosmetic weapon fire recording enabled");
+            tryRegisterCompat("fr.dynamx.common.entities.BaseVehicleEntity",
+                    "mchorse.blockbuster.recording.dynamx.SceneVehicles",
+                    "DynamX detected - scene vehicle ghost cleanup enabled");
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new mchorse.blockbuster.recording.scene.SceneActorRescue());
         }
     }
 
@@ -571,6 +575,105 @@ public class ActionHandler
     }
 
     /**
+     * "/scene clear name|all" und "/scene stop" auf eine schon beendete Szene.
+     *
+     * CommandScene erbt von mclib und laesst sich mit build_and_deploy.bat nicht
+     * kompilieren, deshalb wird hier abgefangen. Die Rechte hat Vanilla vor dem
+     * Event schon geprueft. Abgebrochen landet der Befehl auch nicht in einer Aufnahme.
+     */
+    @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.HIGHEST)
+    public void onSceneCommand(CommandEvent event)
+    {
+        String[] args = event.getParameters();
+        ICommandSender sender = event.getSender();
+
+        if (!"scene".equals(event.getCommand().getName()) || args.length < 1 || sender.getServer() == null)
+        {
+            return;
+        }
+
+        String name;
+        boolean cars = false;
+
+        if (args[0].equals("recordall"))
+        {
+            if (args.length < 2)
+            {
+                sender.sendMessage(new net.minecraft.util.text.TextComponentString("/scene recordall <name>"));
+            }
+            else
+            {
+                mchorse.blockbuster.recording.scene.GroupRecording.toggle(args[1], sender);
+            }
+
+            event.setCanceled(true);
+
+            return;
+        }
+
+        /* Laeuft eine Gruppenaufnahme, beendet stop/toggle auch alle Aufnahmen -
+         * sonst naehmen die Spieler ohne Szene weiter auf. */
+        if ((args[0].equals("stop") || args[0].equals("toggle")) && args.length >= 2
+            && mchorse.blockbuster.recording.scene.GroupRecording.stopIfActive(args[1], sender))
+        {
+            event.setCanceled(true);
+
+            return;
+        }
+
+        /* CommandScene liest args[2], prueft aber nur auf zwei Argumente. */
+        if (args[0].equals("loop") && args.length < 3)
+        {
+            sender.sendMessage(new net.minecraft.util.text.TextComponentString("/scene loop <name> <true|false>"));
+            event.setCanceled(true);
+
+            return;
+        }
+
+        if (args[0].equals("clear"))
+        {
+            if (args.length < 2)
+            {
+                sender.sendMessage(new net.minecraft.util.text.TextComponentString("/scene clear <name|all> [cars]"));
+                event.setCanceled(true);
+
+                return;
+            }
+
+            name = args[1].equals("all") ? null : args[1];
+            cars = args.length >= 3 && args[2].equals("cars");
+        }
+        else if (args[0].equals("stop") && args.length >= 2)
+        {
+            /* Eine laufende Szene stoppt CommandScene wie bisher. Nach dem Ende ist
+             * sie nicht mehr geladen und der Befehl ging ins Leere - dann raeumen
+             * wir stattdessen ihre stehen gebliebenen Actors weg. */
+            mchorse.blockbuster.recording.scene.Scene scene = CommonProxy.scenes.getScenes().get(args[1]);
+
+            if (scene != null && scene.playing)
+            {
+                return;
+            }
+
+            name = args[1];
+        }
+        else
+        {
+            return;
+        }
+
+        int removed = mchorse.blockbuster.recording.scene.SceneCleaner.clear(sender.getServer(), name, null, 0, 0, 0, -1);
+        int vehicles = cars ? mchorse.blockbuster.recording.scene.SceneCleaner.clearVehicles(sender.getServer(), name) : 0;
+        net.minecraft.util.text.TextComponentString message = new net.minecraft.util.text.TextComponentString(
+            (name == null ? "Alle Szenen" : "Szene " + name) + " geleert: " + removed + " Actors"
+            + (cars ? ", " + vehicles + " Fahrzeuge" : "") + " entfernt.");
+
+        message.getStyle().setColor(net.minecraft.util.text.TextFormatting.GREEN);
+        sender.sendMessage(message);
+        event.setCanceled(true);
+    }
+
+    /**
      * Event listener when player logs out. This listener aborts the recording
      * for given player (well, if he records, but that {@link RecordManager}'s
      * job to find out).
@@ -646,6 +749,10 @@ public class ActionHandler
 
         CommonProxy.manager.tick();
         CommonProxy.scenes.tick();
+
+        /* Tab-Vervollstaendigung fuer /scene clear und /scene recordall. Der Befehl
+         * wird erst beim Serverstart registriert, deshalb hier statt beim Laden. */
+        mchorse.blockbuster.commands.SceneCommandCompleter.install(net.minecraftforge.fml.common.FMLCommonHandler.instance().getMinecraftServerInstance());
     }
 
     /**
@@ -708,6 +815,7 @@ public class ActionHandler
                     this.lastVests.remove(player.getUniqueID());
                     this.lastAiming.remove(player.getUniqueID());
                     this.lastMovement.remove(player.getUniqueID());
+                    this.dynamxHandler.clearPlayer(player.getUniqueID());
                 }
 
                 this.dynamxHandler.tickRecordingPlayer(player);
@@ -753,15 +861,6 @@ public class ActionHandler
             UUID id = player.getUniqueID();
             ItemStack current = MWFCompat.getExtraSlotStack(player, MWFCompat.SLOT_VEST);
             ItemStack previous = this.lastVests.get(id);
-
-            if (previous == null)
-            {
-                /* Einmal je Aufnahme sagen, was wirklich in den Slots liegt.
-                 * Ohne das laesst sich nicht unterscheiden, ob die Weste nicht
-                 * uebertragen wird oder schlicht keine getragen wurde. */
-                System.out.println("[Blockbuster] Aufnahme MWF: chest=" + describe(player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST))
-                        + " | alle Extra-Slots: " + MWFCompat.describeExtraSlots(player));
-            }
 
             if (previous != null && ItemStack.areItemStacksEqual(previous, current)) return;
             if (previous == null && current.isEmpty()) return;
@@ -826,11 +925,11 @@ public class ActionHandler
 
             UUID id = player.getUniqueID();
             int code = MWFCompat.getMovementState(player);
-
-            if (code == 0) return;
-
             Integer previous = this.lastMovement.get(id);
 
+            /* 0 = gerade stehen. Nur zu Beginn weglassen - zurueck in die Mitte muss
+             * aufgezeichnet werden, sonst blieb der Actor nach dem Lehnen schief. */
+            if (code == 0 && previous == null) return;
             if (previous != null && previous.intValue() == code) return;
 
             List<Action> actions = CommonProxy.manager.getActions(player);

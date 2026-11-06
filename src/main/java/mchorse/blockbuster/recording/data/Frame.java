@@ -202,6 +202,19 @@ public class Frame
      */
     public void apply(EntityLivingBase actor, @Nullable Replay replay, boolean force)
     {
+        this.apply(actor, replay, force, null, 0);
+    }
+
+    /**
+     * @param path  geglaettete Bahn der ganzen Aufnahme (3 Werte je Bild), oder null
+     * @param index Nummer dieses Bildes in dieser Bahn
+     */
+    public void apply(EntityLivingBase actor, @Nullable Replay replay, boolean force, double[] path, int index)
+    {
+        double px = path == null ? this.x : path[index * 3];
+        double py = path == null ? this.y : path[index * 3 + 1];
+        double pz = path == null ? this.z : path[index * 3 + 2];
+
         boolean isRemote = actor.world.isRemote;
 
         Entity mount = actor.isRiding() ? actor.getRidingEntity() : actor;
@@ -247,7 +260,7 @@ public class Frame
              * sitzt dann sauber auf dem Sitz. */
             if (mount == actor || !mchorse.blockbuster.recording.dynamx.DynamXCompat.isVehicle(mount))
             {
-                mount.setPosition(this.x, this.y, this.z);
+                mount.setPosition(px, py, pz);
             }
         }
 
@@ -264,7 +277,7 @@ public class Frame
                     float[] q = yawTimes(this.yaw, this.vqx, this.vqy, this.vqz, this.vqw);
 
                     mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.pin(actor, mount,
-                        (float) (this.x + this.vx), (float) (this.y + this.vy), (float) (this.z + this.vz),
+                        (float) (px + this.vx), (float) (py + this.vy), (float) (pz + this.vz),
                         q[0], q[1], q[2], q[3]);
                 }
                 else
@@ -272,7 +285,7 @@ public class Frame
                     /* Alte Aufnahme ohne Transform: x/y/z sind schon die
                      * Fahrzeugposition, Rotation aus Gier und Neigung. */
                     mchorse.blockbuster.recording.dynamx.DynamXVehiclePin.pinFromYawPitch(actor, mount,
-                        (float) this.x, (float) this.y, (float) this.z, this.mountYaw, this.mountPitch);
+                        (float) px, (float) py, (float) pz, this.mountYaw, this.mountPitch);
                 }
             }
             else
@@ -291,13 +304,32 @@ public class Frame
 
                 if (actor == mount)
                 {
-                    actor.setPosition(this.x, this.y, this.z);
+                    actor.setPosition(px, py, pz);
                 }
             }
 
             actor.rotationYaw = this.yaw;
             actor.rotationPitch = this.pitch;
             actor.rotationYawHead = this.yawHead;
+        }
+
+        /* CLIENT: die aufgenommene Position selbst setzen, Tick fuer Tick.
+         *
+         * Vorher bewegte der Client einen Actor nur ueber die Positionspakete des
+         * Servers - alle drei Ticks eines, ohne Geschwindigkeit, und bei Serverlast
+         * unregelmaessig. Dazwischen interpolierte er auf eine veraltete Zielposition.
+         * Genau das war das Ruckeln bei laufenden Leuten. Die Aufnahme liegt auf dem
+         * Client ohnehin vor und laeuft dort im selben Takt mit, also zeichnet er sie
+         * jetzt selbst. Fuer Kollisionen und Treffer bleibt der Server zustaendig.
+         *
+         * Nicht fuer den eigenen Spieler (der steuert sich selbst) und nicht fuer
+         * Mitfahrer (die setzt das Fahrzeug auf seinen Sitz). */
+        if (isRemote && !force && !isLocalPlayer(actor) && (!this.isMounted || mount == actor))
+        {
+            /* Die Interpolation auf die Serverposition abschalten, sonst zieht sie
+             * den Actor jeden Tick wieder von der aufgenommenen Bahn weg. */
+            actor.setPositionAndRotationDirect(px, py, pz, this.yaw, this.pitch, 0, false);
+            actor.setPosition(px, py, pz);
         }
 
         /* Motion and fall distance */
@@ -347,6 +379,17 @@ public class Frame
     /**
      * Set entity flags... if only vanilla could expose that shit 
      */
+    private static boolean isLocalPlayer(EntityLivingBase actor)
+    {
+        return actor.world.isRemote && isTheLocalPlayer(actor);
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static boolean isTheLocalPlayer(EntityLivingBase actor)
+    {
+        return actor == Minecraft.getMinecraft().player;
+    }
+
     private void setFlag(EntityLivingBase actor, int i, boolean flag)
     {
         if (FLAGS == null)

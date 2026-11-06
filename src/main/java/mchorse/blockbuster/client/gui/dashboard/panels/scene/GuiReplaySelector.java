@@ -26,6 +26,9 @@ public class GuiReplaySelector extends GuiListElement<Replay>
     private int hoverX;
     private int hoverY;
 
+    /** Recording-Id eines Actors -> wer ihn gerade in seinem Menue ausgewaehlt hat. */
+    public java.util.Map<String, String> editedBy = new java.util.HashMap<String, String>();
+
     public GuiReplaySelector(Minecraft mc, Consumer<List<Replay>> callback)
     {
         super(mc, callback);
@@ -91,6 +94,16 @@ public class GuiReplaySelector extends GuiListElement<Replay>
         {
             GuiDraw.drawOutline(x - w / 2, y, x + w / 2, y + h, 0xff000000 + McLib.primaryColor.get(), 2);
             GuiDraw.unscissor(GuiBase.getCurrent());
+        }
+
+        String editor = replay.id.isEmpty() ? null : this.editedBy.get(replay.id);
+
+        if (editor != null && !isDragging)
+        {
+            String label = this.font.trimStringToWidth(editor, w - 4);
+
+            GuiDraw.drawOutline(x - w / 2, y, x + w / 2, y + h, 0xffffaa00, 1);
+            this.font.drawStringWithShadow(label, x - this.font.getStringWidth(label) / 2, y + 3, 0xffaa00);
         }
 
         if (hover && !replay.id.isEmpty() && this.hovered == null)

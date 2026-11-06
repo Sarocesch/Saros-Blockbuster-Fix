@@ -40,6 +40,7 @@ public class GuiSceneManager extends GuiElement
     public GuiIconElement dupe;
     public GuiIconElement rename;
     public GuiIconElement remove;
+    public GuiIconElement backup;
 
     public GuiSceneManager(Minecraft mc, GuiScenePanel parent)
     {
@@ -57,15 +58,18 @@ public class GuiSceneManager extends GuiElement
         this.rename.tooltip(IKey.lang("blockbuster.gui.scenes.rename_scene"));
         this.remove = new GuiIconElement(mc, Icons.REMOVE, (b) -> this.removeScene());
         this.remove.tooltip(IKey.lang("blockbuster.gui.scenes.remove_scene"));
+        this.backup = new GuiIconElement(mc, Icons.DOWNLOAD, (b) -> this.backupScene());
+        this.backup.tooltip(IKey.str("Lokale Sicherung: Szene und alle ihre Aufnahmen auf deinen PC laden (.minecraft/blockbuster-sicherungen)"));
 
         this.sceneList.flex().relative(this.area).set(0, 20, 0, 0).w(1, 0).h(1, -20);
-        this.add.flex().relative(this.area).set(0, 2, 16, 16).x(1, -78);
+        this.add.flex().relative(this.area).set(0, 2, 16, 16).x(1, -98);
         this.dupe.flex().relative(this.add.resizer()).set(20, 0, 16, 16);
         this.rename.flex().relative(this.dupe.resizer()).set(20, 0, 16, 16);
         this.remove.flex().relative(this.rename.resizer()).set(20, 0, 16, 16);
+        this.backup.flex().relative(this.remove.resizer()).set(20, 0, 16, 16);
 
         /* Add children */
-        this.add(this.sceneList, this.add, this.dupe, this.rename, this.remove);
+        this.add(this.sceneList, this.add, this.dupe, this.rename, this.remove, this.backup);
         this.hideTooltip();
     }
 
@@ -91,6 +95,7 @@ public class GuiSceneManager extends GuiElement
             this.sceneList.setCurrent(name);
 
             this.parent.setScene(new SceneLocation(scene));
+            this.parent.markUnsaved();
         }).filename());
     }
 
@@ -110,33 +115,32 @@ public class GuiSceneManager extends GuiElement
             {
                 if (this.sceneList.getList().contains(name) || !SceneManager.isValidFilename(name)) return;
 
-                Scene scene = new Scene();
-
-                scene.copy(this.parent.getLocation().getScene());
-                scene.setId(name);
-                scene.setupIds();
-                scene.renamePrefix(this.parent.getLocation().getScene().getId(), scene.getId(), (id) -> id + "_copy");
-
-                //copy recordings
-                if (dupeRecordings.isToggled())
-                {
-                    Dispatcher.sendToServer(new PacketSceneManage(this.parent.getLocation().getScene().getId(), name, PacketSceneManage.DUPE));
-                }
-
-                this.sceneList.add(name);
-                this.sceneList.sort();
-                this.sceneList.setCurrent(name);
-
-                this.parent.setScene(new SceneLocation(scene));
-                this.parent.close();
+                /* Erst die eigenen Aenderungen speichern, dann kopiert der Server aus
+                 * seiner Fassung. Man bleibt in der Original-Szene; die Kopie steht
+                 * danach in der Liste. */
+                this.parent.saveChanges();
+                Dispatcher.sendToServer(new PacketSceneManage(this.parent.getLocation().getFilename(), name,
+                    dupeRecordings.isToggled() ? PacketSceneManage.DUPE : PacketSceneManage.DUPE_SCENE));
             });
 
             dupeRecordings.tooltip(IKey.lang("blockbuster.gui.scenes.dupe_recordings_tooltip"));
             dupeRecordings.flex().relative(modal.bar).y(-50).x(10).w(1F, -20);
+            dupeRecordings.toggled(true);
             modal.add(dupeRecordings);
 
             return modal.filename().setValue(this.parent.getLocation().getFilename());
         });
+    }
+
+    private void backupScene()
+    {
+        if (!this.parent.getLocation().isScene())
+        {
+            return;
+        }
+
+        this.parent.saveChanges();
+        Dispatcher.sendToServer(new PacketSceneManage(this.parent.getLocation().getFilename(), "", PacketSceneManage.BACKUP));
     }
 
     private void renameScene()

@@ -46,6 +46,13 @@ public class ClientHandlerSceneCast extends ClientMessageHandler<PacketSceneCast
         {
             panels.scenePanel.openScene(message.location);
         }
+        else if (screen == dashboard && !message.open && message.location != null && message.location.isScene()
+            && message.location.getFilename().equals(panels.scenePanel.getLocation().getFilename()))
+        {
+            /* Antwort auf das Holen beim Oeffnen: nicht ungefragt ueber das legen,
+             * was der Spieler inzwischen schon eingegeben hat. */
+            panels.scenePanel.liveUpdate(message.location);
+        }
         else if (screen == dashboard)
         {
             panels.scenePanel.setScene(message.location);

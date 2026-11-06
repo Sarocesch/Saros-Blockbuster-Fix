@@ -439,6 +439,113 @@ public final class DynamXCompat
         return -1;
     }
 
+    /**
+     * Hat dieses Fahrzeug Sitze, die DynamX selbst verwaltet?
+     */
+    public static boolean hasSeats(Entity vehicle)
+    {
+        if (!isVehicle(vehicle)) return false;
+        try
+        {
+            return methodGetModuleByType.invoke(vehicle, classSeatsModule) != null;
+        }
+        catch (Throwable ignored) {}
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static com.google.common.collect.BiMap<Object, Entity> seatMap(Object seatsModule) throws Exception
+    {
+        return (com.google.common.collect.BiMap<Object, Entity>) methodGetSeatToPassengerMap.invoke(seatsModule);
+    }
+
+    /**
+     * Einen Sitz fuer den Mitfahrer eintragen, BEVOR er per startRiding einsteigt.
+     *
+     * <p>DynamX kennt einen Mitfahrer nur, wenn er vorher in der Sitz-Tabelle steht
+     * (BasePartSeat.mountEntity). Steigt ein Actor ohne Eintrag ein - beim Chunk-Laden
+     * setzt Minecraft gespeicherte Mitfahrer per startRiding zurueck -, meldet DynamX
+     * "Cannot add passenger ... seat not found" und laesst ihn sitzlos mitfahren.</p>
+     *
+     * <p>Zuerst der gewuenschte Sitz, sonst der erste freie. Frei ist ein Sitz auch, wenn
+     * sein Eintrag veraltet ist (Besitzer tot oder nicht mehr in diesem Fahrzeug).</p>
+     *
+     * @return Sitzindex, oder -1 wenn keiner frei ist
+     */
+    public static int claimSeat(Entity vehicle, Entity rider, int preferred)
+    {
+        if (!isAvailable() || vehicle == null || rider == null) return -1;
+        try
+        {
+            Object seatsModule = methodGetModuleByType.invoke(vehicle, classSeatsModule);
+            java.util.List<?> seats = seatsModule == null ? null : getSeatList(vehicle);
+            if (seats == null || seats.isEmpty()) return -1;
+
+            com.google.common.collect.BiMap<Object, Entity> map = seatMap(seatsModule);
+            Object mine = map.inverse().get(rider);
+
+            if (mine != null)
+            {
+                for (int i = 0; i < seats.size(); i++)
+                {
+                    if (seats.get(i) == mine) return i;
+                }
+            }
+
+            for (int pass = -1; pass < seats.size(); pass++)
+            {
+                int i = pass < 0 ? preferred : pass;
+                if (i < 0 || i >= seats.size() || (pass >= 0 && i == preferred)) continue;
+
+                Object seat = seats.get(i);
+                Entity occupant = map.get(seat);
+
+                if (occupant != null && !occupant.isDead && occupant.getRidingEntity() == vehicle) continue;
+                if (occupant != null) map.remove(seat);
+
+                map.put(seat, rider);
+                return i;
+            }
+        }
+        catch (Throwable ignored) {}
+        return -1;
+    }
+
+    /**
+     * Sitz-Eintrag wieder entfernen, wenn das Einsteigen danach doch scheiterte.
+     */
+    public static void releaseSeat(Entity vehicle, Entity rider)
+    {
+        if (!isAvailable() || vehicle == null || rider == null) return;
+        try
+        {
+            Object seatsModule = methodGetModuleByType.invoke(vehicle, classSeatsModule);
+            if (seatsModule != null) seatMap(seatsModule).inverse().remove(rider);
+        }
+        catch (Throwable ignored) {}
+    }
+
+    private static Method methodSeatsAddPassenger;
+
+    /**
+     * Einen nachtraeglich eingetragenen Sitz an DynamX melden (Sitz-Sync an die Clients).
+     */
+    public static void announceSeat(Entity vehicle, Entity rider)
+    {
+        if (!isAvailable() || vehicle == null || rider == null) return;
+        try
+        {
+            Object seatsModule = methodGetModuleByType.invoke(vehicle, classSeatsModule);
+            if (seatsModule == null) return;
+            if (methodSeatsAddPassenger == null)
+            {
+                methodSeatsAddPassenger = classSeatsModule.getMethod("addPassenger", Entity.class);
+            }
+            methodSeatsAddPassenger.invoke(seatsModule, rider);
+        }
+        catch (Throwable ignored) {}
+    }
+
     /* --- Haende am Lenkrad --------------------------------------------------
      *
      * MWRP macht das fuer Spieler in ImmersiveHandAnimClientHandler, holt den

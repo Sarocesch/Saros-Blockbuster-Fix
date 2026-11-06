@@ -9,6 +9,8 @@ public class PacketSceneManage implements IMessage
     public static final int RENAME = 1;
     public static final int REMOVE = 2;
     public static final int DUPE = 3;
+    public static final int DUPE_SCENE = 4;
+    public static final int BACKUP = 5;
 
     public String source;
     public String destination;

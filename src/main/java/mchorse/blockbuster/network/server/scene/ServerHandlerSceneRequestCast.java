@@ -27,7 +27,10 @@ public class ServerHandlerSceneRequestCast extends ServerMessageHandler<PacketSc
         {
             Scene scene = CommonProxy.scenes.load(message.location.getFilename());
 
-            Dispatcher.sendTo(new PacketSceneCast(new SceneLocation(scene)), player);
+            /* open(false): kommt die Antwort erst, nachdem das Menue schon wieder zu
+             * ist, soll sie es nicht von selbst neu oeffnen. Ist es offen, wird
+             * die Szene dort ersetzt - wie bisher. */
+            Dispatcher.sendTo(new PacketSceneCast(new SceneLocation(scene)).open(false), player);
         }
         catch (Exception e)
         {

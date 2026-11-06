@@ -325,14 +325,25 @@ public final class MWFCompat
 
         try
         {
-            Class<?> classServer = Class.forName("mchhui.modularmovements.tactical.server.ServerListener");
-            Class<?> classClient = Class.forName("mchhui.modularmovements.tactical.client.ClientListener");
-
             classPlayerState = Class.forName("mchhui.modularmovements.tactical.PlayerState");
             methodWriteCode = classPlayerState.getMethod("writeCode");
             methodReadCode = classPlayerState.getMethod("readCode", int.class);
 
+            Class<?> classServer = Class.forName("mchhui.modularmovements.tactical.server.ServerListener");
+
             serverStateMap = (Map<Object, Object>) classServer.getField("playerStateMap").get(null);
+
+            /* Auf dem dedizierten Server gibt es die Client-Klasse nicht. Frueher lag sie im
+             * selben try - der Server fiel dann komplett aus und nahm nie ein Lehnen auf. */
+            if (!net.minecraftforge.fml.common.FMLCommonHandler.instance().getSide().isClient())
+            {
+                movementAvailable = serverStateMap != null;
+
+                return movementAvailable;
+            }
+
+            Class<?> classClient = Class.forName("mchhui.modularmovements.tactical.client.ClientListener");
+
             clientStateMap = (Map<Object, Object>) classClient.getField("ohterPlayerStateMap").get(null);
 
             methodMovementAngles = classClient.getMethod("setRotationAngles",
@@ -372,7 +383,7 @@ public final class MWFCompat
      */
     public static int getMovementState(Entity entity)
     {
-        if (entity == null || !initMovement()) return 0;
+        if (entity == null || !initMovement() || serverStateMap == null) return 0;
 
         try
         {
@@ -395,7 +406,7 @@ public final class MWFCompat
      */
     public static void setMovementState(Entity entity, int code)
     {
-        if (entity == null || !initMovement()) return;
+        if (entity == null || !initMovement() || clientStateMap == null) return;
 
         try
         {
@@ -423,7 +434,7 @@ public final class MWFCompat
      */
     public static void applyMovementAngles(net.minecraft.client.model.ModelBiped model, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, float scale, Entity entity)
     {
-        if (model == null || entity == null || !initMovement()) return;
+        if (model == null || entity == null || !initMovement() || clientStateMap == null) return;
         if (!clientStateMap.containsKey(Integer.valueOf(entity.getEntityId()))) return;
 
         try
@@ -443,7 +454,7 @@ public final class MWFCompat
      */
     public static boolean applyMovementRotations(Object renderer, Entity entity, float pitch, float yaw, float partialTicks)
     {
-        if (renderer == null || entity == null || !initMovement()) return false;
+        if (renderer == null || entity == null || !initMovement() || clientStateMap == null) return false;
         if (!clientStateMap.containsKey(Integer.valueOf(entity.getEntityId()))) return false;
 
         try
@@ -487,7 +498,7 @@ public final class MWFCompat
      */
     public static String describeMovementState(Entity entity)
     {
-        if (entity == null || !initMovement()) return "<keine Bewegungsdaten>";
+        if (entity == null || !initMovement() || clientStateMap == null) return "<keine Bewegungsdaten>";
 
         try
         {
@@ -508,9 +519,66 @@ public final class MWFCompat
         }
     }
 
+    /**
+     * Client: den ModularMovements-Zustand eines Actors auf eine andere Entity
+     * spiegeln (das Spielermodell hat eine eigene Entity-ID). Eigener Zustand, damit
+     * die Lehn-Animation nicht doppelt pro Tick weiterlaeuft; nur bei Aenderung.
+     */
+    public static void mirrorMovementStateClient(Entity from, Entity to)
+    {
+        if (from == null || to == null || !initMovement() || clientStateMap == null) return;
+
+        try
+        {
+            Object state = clientStateMap.get(Integer.valueOf(from.getEntityId()));
+            Integer target = Integer.valueOf(to.getEntityId());
+
+            if (state == null)
+            {
+                clientStateMap.remove(target);
+
+                return;
+            }
+
+            Object code = methodWriteCode.invoke(state);
+            Object mine = clientStateMap.get(target);
+
+            if (mine != null && code != null && code.equals(methodWriteCode.invoke(mine))) return;
+
+            if (mine == null)
+            {
+                mine = classPlayerState.newInstance();
+                clientStateMap.put(target, mine);
+            }
+
+            methodReadCode.invoke(mine, code);
+        }
+        catch (Throwable ignored) {}
+    }
+
+    /**
+     * Einen MWF-Extra-Slot setzen (Client, fuer das Spielermodell eines Actors).
+     */
+    public static void setExtraSlotStack(Entity entity, int slot, ItemStack stack)
+    {
+        if (entity == null) return;
+
+        try
+        {
+            Object handler = findExtraContainer(entity);
+
+            if (handler == null) return;
+
+            Method method = handler.getClass().getMethod("setStackInSlot", int.class, ItemStack.class);
+
+            method.invoke(handler, slot, stack == null ? ItemStack.EMPTY : stack);
+        }
+        catch (Throwable ignored) {}
+    }
+
     public static void clearMovementState(Entity entity)
     {
-        if (entity == null || !initMovement()) return;
+        if (entity == null || !initMovement() || clientStateMap == null) return;
 
         try
         {

@@ -7,7 +7,6 @@ import mchorse.mclib.utils.RayTracing;
 import mchorse.metamorph.api.morphs.AbstractMorph;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.DamageSource;
 
@@ -49,12 +48,27 @@ public class AttackAction extends DamageAction
         actor.rotationPitch = pitch;
         actor.rotationYawHead = yawHead;
 
+        if (target instanceof EntityActor.EntityFakePlayer)
+        {
+            /* Unsichtbare Hilfsfigur eines Actors - gemeint ist der Actor selbst.
+             * Auch als Opfer darf CustomNPCs nie einen Fake-Spieler sehen. */
+            EntityActor owner = ((EntityActor.EntityFakePlayer) target).actor;
+
+            target = owner == actor ? null : owner;
+        }
+
         if (target != null)
         {
-            /* fakePlayer is EntityPlayer so CustomNPCs can cast getTrueSource() to IPlayer; EntityActor can't */
-            EntityPlayer src = (actor instanceof EntityActor) ? ((EntityActor) actor).fakePlayer : null;
-            DamageSource ds = (src != null) ? DamageSource.causeMobDamage(src) : new DamageSource("blockbuster_actor");
-            target.attackEntityFrom(ds, this.damage);
+            /* Quelle ist der Actor selbst, kein Spieler.
+             *
+             * Vorher war es der Fake-Spieler des Actors. CustomNPCs behandelt jeden
+             * Angreifer, der EntityPlayer ist, als echten Spieler und castet ihn auf
+             * IPlayer (ScriptPlayerEventHandler.invoke(LivingAttackEvent)). Der
+             * Fake-Spieler ist aber kein EntityPlayerMP, CustomNPCs liefert dafuer nur
+             * einen EntityLivingBaseWrapper - jeder aufgenommene Schlag warf einen
+             * ClassCastException ins Log. Ein Actor ist kein EntityPlayer, CustomNPCs
+             * laesst ihn in Ruhe. Die Schadensart bleibt "mob" wie vorher. */
+            target.attackEntityFrom(DamageSource.causeMobDamage(actor), this.damage);
 
             AbstractMorph morph = mchorse.metamorph.api.EntityUtils.getMorph(actor);
 

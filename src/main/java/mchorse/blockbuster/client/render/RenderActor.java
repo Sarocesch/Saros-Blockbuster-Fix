@@ -50,6 +50,16 @@ public class RenderActor extends RenderLiving<EntityActor>
         return defaultTexture;
     }
 
+    /**
+     * Gleiche Regel wie RenderCustomActor - gilt nur fuer das Spielermodell, der
+     * Morph zeichnet seinen Namen selbst.
+     */
+    @Override
+    protected boolean canRenderName(EntityActor entity)
+    {
+        return entity.hasCustomName() && (Blockbuster.actorAlwaysRenderNames.get() || (Minecraft.isGuiEnabled() && entity == this.renderManager.pointedEntity));
+    }
+
     @Override
     public boolean shouldRender(EntityActor livingEntity, ICamera camera, double camX, double camY, double camZ)
     {
@@ -74,6 +84,24 @@ public class RenderActor extends RenderLiving<EntityActor>
         if (entity.invisible)
         {
             this.renderPlayerRecordingName(entity, x, y, z);
+
+            return;
+        }
+
+        /* Replay-Schalter "Skin des Aufnehmenden": als echtes Spielermodell mit /skin und CPM */
+        if (ActorPuppetRenderer.render(this.renderManager, entity, x, y, z, entityYaw, partialTicks))
+        {
+            this.shadowOpaque = 1.0F;
+            this.shadowSize = 0.5F;
+
+            this.renderLeash(entity, x, y, z, entityYaw, partialTicks);
+            this.renderName(entity, x, y, z);
+            this.renderPlayerRecordingName(entity, x, y, z);
+
+            if (entity.playback != null && entity.playback.record != null)
+            {
+                RenderingHandler.recordsToRender.add(entity.playback.record);
+            }
 
             return;
         }

@@ -122,6 +122,21 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     /** Welt-Tick, zu dem die Szene diesen Actor stehen gelassen hat. */
     public long leftoverSince;
 
+    /** Beim Bauen des Spawn-Pakets als Waise erkannt, wird im naechsten Tick entfernt. */
+    private boolean orphaned;
+
+    /** Zuletzt belegter DynamX-Sitz (-1 = keiner), damit ein neu geladener Actor denselben Platz bekommt. */
+    public int dynamxSeat = -1;
+
+    /** /skin und CPM-Modell des Aufnehmenden (Replay-Schalter "Skin des Aufnehmenden"), sonst null. */
+    public mchorse.blockbuster.recording.appearance.ActorAppearance appearance;
+
+    /** Aeussere Hautschicht am Spielermodell ausblenden (wie "Hide outer skin layer"). */
+    public boolean appearanceHideOuter;
+
+    /** Nur Client: das Spielermodell, mit dem der Actor gezeichnet wird (ActorPuppet). */
+    public Object appearancePuppet;
+
     /**
      * Whether the control of playback should be manual 
      */
@@ -178,6 +193,20 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     }
 
     /**
+     * Die laufende Wiedergabe uebernehmen. Fuer die Kopie, die Minecraft beim
+     * Neuladen eines Chunks aus dem Speicherstand erzeugt - ohne das galt sie als
+     * verwaist und raeumte sich weg, waehrend die Szene ein unsichtbares
+     * Exemplar weiterspielte.
+     */
+    public void adoptPlayback(RecordPlayer playback)
+    {
+        this.playback = playback;
+        this.orphaned = false;
+        this.leftoverScene = "";
+        this.leftoverSince = 0;
+    }
+
+    /**
      * Returns the Y Offset of this entity.
      *
      * Taken from EntityPlayer.
@@ -204,6 +233,77 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     protected boolean canBeRidden(Entity entityIn)
     {
         return true;
+    }
+
+    public void setAppearance(mchorse.blockbuster.recording.appearance.ActorAppearance appearance, boolean hideOuter)
+    {
+        this.appearance = appearance != null && appearance.isValid() ? appearance : null;
+        this.appearanceHideOuter = hideOuter;
+    }
+
+    /**
+     * DynamX-Fahrzeuge nur ueber einen eingetragenen Sitz besteigen.
+     *
+     * <p>Ein stehen gelassener Actor im Auto wird mit dem Chunk gespeichert, und beim
+     * Laden setzt Minecraft ihn per startRiding wieder hinein - ohne Sitz-Eintrag. DynamX
+     * meldete dann bei jedem Chunk-Laden "Cannot add passenger ... seat not found". Das
+     * Gleiche passierte, wenn die Mount-Aktion zweimal lief: Vanilla stieg erst aus (der
+     * Sitz-Eintrag fiel weg) und dann ohne Eintrag wieder ein.</p>
+     */
+    @Override
+    public boolean startRiding(Entity vehicle, boolean force)
+    {
+        if (this.world.isRemote || !mchorse.blockbuster.recording.dynamx.DynamXCompat.hasSeats(vehicle))
+        {
+            return super.startRiding(vehicle, force);
+        }
+
+        int seat = mchorse.blockbuster.recording.dynamx.DynamXCompat.getSeatIndex(vehicle, this);
+
+        if (this.getRidingEntity() == vehicle)
+        {
+            if (seat < 0 && (seat = mchorse.blockbuster.recording.dynamx.DynamXCompat.claimSeat(vehicle, this, this.dynamxSeat)) >= 0)
+            {
+                mchorse.blockbuster.recording.dynamx.DynamXCompat.announceSeat(vehicle, this);
+            }
+
+            if (seat >= 0)
+            {
+                this.dynamxSeat = seat;
+            }
+
+            return true;
+        }
+
+        boolean claimed = false;
+
+        if (seat < 0)
+        {
+            seat = mchorse.blockbuster.recording.dynamx.DynamXCompat.claimSeat(vehicle, this, this.dynamxSeat);
+
+            if (seat < 0)
+            {
+                System.out.println("[Blockbuster] Actor " + this.getEntityId() + ": kein freier Sitz in " + vehicle.getName() + ", steigt nicht ein");
+
+                return false;
+            }
+
+            claimed = true;
+        }
+
+        if (super.startRiding(vehicle, force))
+        {
+            this.dynamxSeat = seat;
+
+            return true;
+        }
+
+        if (claimed)
+        {
+            mchorse.blockbuster.recording.dynamx.DynamXCompat.releaseSeat(vehicle, this);
+        }
+
+        return false;
     }
 
     /**
@@ -337,9 +437,11 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         /* Ein stehen gelassener Actor, der beim Szenenstart in einem entladenen
          * Chunk lag, entging dem Aufraeumen. Kommt der Chunk zurueck, raeumt er
          * sich selbst weg - sonst stapelten sich alte und neue Durchlaeufe. */
-        if (!this.world.isRemote && this.playback == null && !this.leftoverScene.isEmpty()
-                && mchorse.blockbuster.recording.scene.Scene.wasRestartedSince(this.leftoverScene, this.leftoverSince))
+        if (!this.world.isRemote && (this.orphaned || this.playback == null && !this.leftoverScene.isEmpty()
+                && mchorse.blockbuster.recording.scene.Scene.wasRestartedSince(this.leftoverScene, this.leftoverSince)))
         {
+            /* Erst aus dem Sitz: ein toter Mitfahrer wird von der Welt nie ausgetragen. */
+            this.dismountRidingEntity();
             this.setDead();
 
             return;
@@ -752,6 +854,9 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         this.wasAttached = tag.getBoolean("WasAttached");
         this.leftoverScene = tag.getString("LeftoverScene");
         this.leftoverSince = tag.getLong("LeftoverSince");
+        this.dynamxSeat = tag.hasKey("DynamXSeat") ? tag.getInteger("DynamXSeat") : -1;
+        this.appearance = tag.hasKey("Appearance", 10) ? mchorse.blockbuster.recording.appearance.ActorAppearance.fromNBT(tag.getCompoundTag("Appearance")) : null;
+        this.appearanceHideOuter = tag.getBoolean("AppearanceHideOuter");
 
         if (!this.world.isRemote)
         {
@@ -778,6 +883,19 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
             tag.setString("LeftoverScene", this.leftoverScene);
             tag.setLong("LeftoverSince", this.leftoverSince);
         }
+
+        int seat = this.isRiding() ? mchorse.blockbuster.recording.dynamx.DynamXCompat.getSeatIndex(this.getRidingEntity(), this) : -1;
+
+        if (seat >= 0)
+        {
+            tag.setInteger("DynamXSeat", seat);
+        }
+
+        if (this.appearance != null)
+        {
+            tag.setTag("Appearance", this.appearance.toNBT());
+            tag.setBoolean("AppearanceHideOuter", this.appearanceHideOuter);
+        }
     }
 
     /* IEntityAdditionalSpawnData implementation */
@@ -791,7 +909,8 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
          * nicht mehr. Aufgeraeumt werden sie beim naechsten Szenenstart. */
         if (this.wasAttached && this.playback == null && this.leftoverScene.isEmpty())
         {
-            this.setDead();
+            /* Nicht hier toeten: mitten im Tracker darf er nicht aus dem Sitz. */
+            this.orphaned = true;
         }
 
         MorphUtils.morphToBuf(buffer, this.morph.get());
@@ -817,6 +936,16 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
 
         buffer.writeBoolean(this.isEntityInvulnerable(DamageSource.ANVIL));
         buffer.writeBoolean(this.renderLast);
+
+        /* Am Ende, damit ein Client ohne dieses Update den Rest noch lesen kann. */
+        buffer.writeBoolean(this.appearance != null);
+
+        if (this.appearance != null)
+        {
+            this.appearance.toBuf(buffer);
+            buffer.writeBoolean(this.appearanceHideOuter);
+            mchorse.blockbuster.recording.appearance.ActorAppearance.writeGestures(buffer, this.appearance.gestures);
+        }
     }
 
     @Override
@@ -844,6 +973,12 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
             {
                 Record record = ClientProxy.manager.getClient(filename);
 
+                /* Ohne Bilder (nur Aktionen geladen) wie fehlend behandeln. */
+                if (record != null && (record.frames == null || record.frames.isEmpty()))
+                {
+                    record = null;
+                }
+
                 if (record != null)
                 {
                     this.playback = new RecordPlayer(record, Mode.FRAMES, this);
@@ -868,6 +1003,19 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
 
         this.setEntityInvulnerable(buffer.readBoolean());
         this.renderLast = buffer.readBoolean();
+
+        if (buffer.isReadable() && buffer.readBoolean())
+        {
+            this.appearance = mchorse.blockbuster.recording.appearance.ActorAppearance.fromBuf(buffer);
+            this.appearanceHideOuter = buffer.readBoolean();
+
+            byte[] gestures = buffer.isReadable() ? mchorse.blockbuster.recording.appearance.ActorAppearance.readGestures(buffer) : null;
+
+            if (this.appearance != null)
+            {
+                this.appearance.gestures = gestures;
+            }
+        }
     }
 
     @Override

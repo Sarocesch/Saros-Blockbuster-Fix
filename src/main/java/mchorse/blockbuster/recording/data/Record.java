@@ -96,6 +96,11 @@ public class Record
     public NBTTagCompound playerData;
 
     /**
+     * /skin und CPM-Modell des Aufnehmenden (null bei aelteren Aufnahmen)
+     */
+    public mchorse.blockbuster.recording.appearance.ActorAppearance appearance;
+
+    /**
      * Unload timer. Used only on server side.
      */
     public int unload;
@@ -351,6 +356,84 @@ public class Record
         this.unload = Blockbuster.recordUnloadTime.get();
     }
 
+    /* Geglaettete Bahn, nur im Arbeitsspeicher - die Datei auf der Platte bleibt
+     * unveraendert. Beim Aufnehmen laggt der Server manchmal: ein Tick dauert
+     * laenger, der Spieler kommt weiter, der naechste Tick kaum. Abgespielt wird das
+     * mit gleichmaessigem Takt und sieht deshalb wie ein Ruckler aus. Ausgeglichen
+     * werden nur solche Ausreisser, normale Fahrt bleibt unberuehrt. */
+    private double[] smoothPath;
+    private boolean smoothChecked;
+    private int smoothSize;
+
+    /** Ab dieser Beschleunigung ist es ein Ruckler (Bloecke pro Tick im Quadrat). */
+    private static final double SMOOTH_SPIKE = 0.12D;
+
+    /** Darueber ist es ein echter Sprung (Schnitt, /record origin) und bleibt stehen. */
+    private static final double SMOOTH_JUMP = 8.0D;
+
+    public double[] smoothPath()
+    {
+        if (this.smoothChecked && this.smoothSize == this.frames.size())
+        {
+            return this.smoothPath;
+        }
+
+        this.smoothChecked = true;
+        this.smoothSize = this.frames.size();
+        this.smoothPath = null;
+
+        int size = this.frames.size();
+
+        if (size < 5)
+        {
+            return null;
+        }
+
+        double[] path = new double[size * 3];
+
+        for (int i = 0; i < size; i++)
+        {
+            Frame frame = this.frames.get(i);
+
+            path[i * 3] = frame.x;
+            path[i * 3 + 1] = frame.y;
+            path[i * 3 + 2] = frame.z;
+        }
+
+        int repaired = 0;
+
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int i = 1; i < size - 1; i++)
+            {
+                double ax = path[(i + 1) * 3] - 2 * path[i * 3] + path[(i - 1) * 3];
+                double ay = path[(i + 1) * 3 + 1] - 2 * path[i * 3 + 1] + path[(i - 1) * 3 + 1];
+                double az = path[(i + 1) * 3 + 2] - 2 * path[i * 3 + 2] + path[(i - 1) * 3 + 2];
+                double accel = Math.sqrt(ax * ax + ay * ay + az * az);
+
+                if (accel > SMOOTH_SPIKE && accel < SMOOTH_JUMP)
+                {
+                    path[i * 3] = (path[(i - 1) * 3] + path[(i + 1) * 3]) / 2;
+                    path[i * 3 + 1] = (path[(i - 1) * 3 + 1] + path[(i + 1) * 3 + 1]) / 2;
+                    path[i * 3 + 2] = (path[(i - 1) * 3 + 2] + path[(i + 1) * 3 + 2]) / 2;
+
+                    repaired++;
+                }
+            }
+        }
+
+        if (repaired == 0)
+        {
+            return null;
+        }
+
+        this.smoothPath = path;
+
+        System.out.println("[Blockbuster] Aufnahme " + this.filename + ": " + repaired + " Ruckler von " + size + " Bildern geglaettet");
+
+        return path;
+    }
+
     public void applyFrame(int tick, EntityLivingBase actor, boolean force)
     {
         this.applyFrame(tick, actor, force, false);
@@ -368,7 +451,7 @@ public class Record
 
         Frame frame = this.frames.get(tick);
 
-        frame.apply(actor, this.replay, force);
+        frame.apply(actor, this.replay, force, this.smoothPath(), tick);
 
         if (realPlayer)
         {
@@ -500,6 +583,9 @@ public class Record
      * Apply an action at the given tick on the given actor. Don't pass tick
      * value less than 0, otherwise you might experience game crash.
      */
+    /** Aktionsarten, deren Fehler schon einmal gemeldet wurden. */
+    private static final java.util.Set<String> REPORTED = new java.util.HashSet<String>();
+
     public void applyAction(int tick, EntityLivingBase actor, boolean safe)
     {
         if (tick >= this.actions.size() || tick < 0)
@@ -522,9 +608,17 @@ public class Record
                 {
                     action.apply(actor);
                 }
-                catch (Exception e)
+                catch (Throwable e)
                 {
-                    e.printStackTrace();
+                    /* Nur die erste Meldung je Aktionsart. Ein Fremdmod, der bei
+                     * unserer Aktion wirft (z.B. CustomNPCs beim Angriff auf einen
+                     * Actor), flutete sonst mit jedem Tick das Log. Die Wiedergabe
+                     * laeuft weiter, nur diese Aktion faellt aus. */
+                    if (REPORTED.add(action.getClass().getName()))
+                    {
+                        System.out.println("[Blockbuster] Aktion " + action.getClass().getSimpleName()
+                                + " scheiterte an einem anderen Mod: " + e);
+                    }
                 }
             }
         }
@@ -987,6 +1081,7 @@ public class Record
         record.version = this.version;
         record.preDelay = this.preDelay;
         record.postDelay = this.postDelay;
+        record.appearance = this.appearance;
 
         for (Frame frame : this.frames)
         {
@@ -1060,6 +1155,11 @@ public class Record
         if (this.playerData != null)
         {
             compound.setTag("PlayerData", this.playerData);
+        }
+
+        if (this.appearance != null)
+        {
+            compound.setTag("Appearance", this.appearance.toNBT());
         }
 
         int c = this.frames.size();
@@ -1190,6 +1290,11 @@ public class Record
         if (compound.hasKey("PlayerData", 10))
         {
             this.playerData = compound.getCompoundTag("PlayerData");
+        }
+
+        if (compound.hasKey("Appearance", 10))
+        {
+            this.appearance = mchorse.blockbuster.recording.appearance.ActorAppearance.fromNBT(compound.getCompoundTag("Appearance"));
         }
 
         NBTTagList frames = (NBTTagList) compound.getTag("Frames");

@@ -15,7 +15,9 @@ import mchorse.blockbuster.recording.data.Frame;
 import mchorse.blockbuster.recording.actions.VehicleMountAction;
 import mchorse.blockbuster.recording.data.Mode;
 import mchorse.blockbuster.recording.data.Record;
+import mchorse.blockbuster.recording.dynamx.HydraulicCompat;
 import mchorse.blockbuster.utils.EntityUtils;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayer;
@@ -346,6 +348,14 @@ public class RecordPlayer
      */
     public void stopPlaying()
     {
+        /* Ohne Wiedergabe keine Eingaben mehr: Schub und Knueppel eines Flugzeugs auf 0. */
+        Entity vehicle = this.actor.getRidingEntity();
+
+        if (!this.actor.world.isRemote && vehicle != null && vehicle.getControllingPassenger() == this.actor)
+        {
+            HydraulicCompat.release(vehicle);
+        }
+
         CommonProxy.manager.stop(this);
 
         this.actor.noClip = false;
@@ -408,15 +418,34 @@ public class RecordPlayer
             {
                 if (!this.actor.isDead)
                 {
-                    this.actor.world.spawnEntity(this.actor);
+                    /* Steht schon eine Kopie mit dieser UUID in der Welt (Chunk wurde
+                     * entladen und neu geladen), die uebernehmen statt zu spawnen -
+                     * Vanilla wuerde das Spawnen ohnehin ablehnen. */
+                    if (mchorse.blockbuster.recording.scene.SceneActorRescue.adoptReloaded(this))
+                    {
+                        return;
+                    }
 
-                    EntityPlayer player = ((EntityActor) this.actor).fakePlayer;
+                    /* Nur bei Erfolg den Hilfsspieler eintragen. Vorher landete er bei
+                     * jedem gescheiterten Versuch (Chunk nicht geladen) erneut in der
+                     * Entity-Liste - jeden Tick einmal mehr. */
+                    if (this.actor.world.spawnEntity(this.actor))
+                    {
+                        EntityPlayer player = ((EntityActor) this.actor).fakePlayer;
 
-                    player.posX = this.actor.posX;
-                    player.posY = this.actor.posY;
-                    player.posZ = this.actor.posZ;
+                        player.posX = this.actor.posX;
+                        player.posY = this.actor.posY;
+                        player.posZ = this.actor.posZ;
 
-                    this.actor.world.loadedEntityList.add(((EntityActor) this.actor).fakePlayer);
+                        if (!this.actor.world.loadedEntityList.contains(player))
+                        {
+                            this.actor.world.loadedEntityList.add(player);
+                        }
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
             }
             else if (this.actor instanceof EntityPlayer)

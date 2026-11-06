@@ -109,6 +109,12 @@ import mchorse.blockbuster.network.common.mwf.PacketMWFFireReplay;
 import mchorse.blockbuster.network.server.scene.ServerHandlerSceneRequestCast;
 import mchorse.blockbuster.network.server.scene.sync.ServerHandlerSceneGoto;
 import mchorse.blockbuster.network.server.scene.sync.ServerHandlerScenePlay;
+import mchorse.blockbuster.network.client.ClientHandlerSkinData;
+import mchorse.blockbuster.network.client.ClientHandlerSkinRequest;
+import mchorse.blockbuster.network.common.PacketSkinData;
+import mchorse.blockbuster.network.common.PacketSkinRequest;
+import mchorse.blockbuster.network.server.ServerHandlerSkinData;
+import mchorse.blockbuster.network.server.ServerHandlerSkinRequest;
 import mchorse.mclib.network.AbstractDispatcher;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -181,6 +187,7 @@ public class Dispatcher
             /* Multiplayer */
             register(PacketReloadModels.class, ServerHandlerReloadModels.class, Side.SERVER);
 
+
             /* Guns */
             register(PacketGunInfo.class, ServerHandlerGunInfo.class, Side.SERVER);
             register(PacketZoomCommand.class, ServerHandlerZoomCommand.class, Side.SERVER);
@@ -224,6 +231,23 @@ public class Dispatcher
 
             /* ModularMovements pose on actors - lean, sit, crawl, roll */
             register(mchorse.blockbuster.network.common.mwf.PacketMMState.class, mchorse.blockbuster.network.client.mwf.ClientHandlerMMState.class, Side.CLIENT);
+
+            /* Skins ueber den Server spiegeln, wenn ein Link nicht mehr geht.
+             * Bewusst als LETZTES angemeldet: mclib vergibt die Paketnummern in
+             * dieser Reihenfolge. Weiter oben eingefuegt, wuerden sich die Nummern
+             * aller folgenden Pakete verschieben und eine aeltere Jar im Netz
+             * bekaeme Waffen- und Strukturpakete durcheinander. */
+            register(PacketSkinRequest.class, ServerHandlerSkinRequest.class, Side.SERVER);
+            register(PacketSkinRequest.class, ClientHandlerSkinRequest.class, Side.CLIENT);
+            register(PacketSkinData.class, ServerHandlerSkinData.class, Side.SERVER);
+            register(PacketSkinData.class, ClientHandlerSkinData.class, Side.CLIENT);
+
+            /* Szenen-Menue: wer bearbeitet gerade, Live-Abgleich, lokale Sicherung.
+             * Aus demselben Grund wie oben hinten angehaengt. */
+            register(mchorse.blockbuster.network.common.scene.PacketSceneEditing.class, mchorse.blockbuster.network.server.scene.ServerHandlerSceneEditing.class, Side.SERVER);
+            register(mchorse.blockbuster.network.common.scene.PacketSceneEditors.class, mchorse.blockbuster.network.client.scene.ClientHandlerSceneEditors.class, Side.CLIENT);
+            register(mchorse.blockbuster.network.common.scene.PacketSceneLive.class, mchorse.blockbuster.network.client.scene.ClientHandlerSceneLive.class, Side.CLIENT);
+            register(mchorse.blockbuster.network.common.scene.PacketSceneBackup.class, mchorse.blockbuster.network.client.scene.ClientHandlerSceneBackup.class, Side.CLIENT);
 
             CameraHandler.registerMessages();
         }

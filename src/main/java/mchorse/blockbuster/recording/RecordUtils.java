@@ -230,7 +230,28 @@ public class RecordUtils
     {
         Record record = CommonProxy.manager.records.get(filename);
 
-        if (playerNeedsAction(filename, player) && record != null)
+        /* Nicht im Speicher heisst nicht "gibt es nicht" - vom Server entladen
+         * wird nach einer Weile ohne Wiedergabe. */
+        if (record == null)
+        {
+            try
+            {
+                record = CommonProxy.manager.get(filename);
+            }
+            catch (Exception e)
+            {
+                record = null;
+            }
+        }
+
+        /* Fragt der Client an, fehlen ihm die Bilder - immer schicken. Vorher
+         * entschied die Buchfuehrung des Servers ("hat er schon"), und die lag
+         * daneben, sobald der Client seinen Cache verworfen hatte oder nur die
+         * Aktionen kannte. Dann bekam er nie Bilder, und der Actor stand bei
+         * diesem Spieler halb kaputt herum. */
+        playerNeedsAction(filename, player);
+
+        if (record != null)
         {
             record.resetUnload();
 
@@ -294,9 +315,12 @@ public class RecordUtils
             if (recording.hasRecording(filename))
             {
                 recording.removeRecording(filename);
-
-                Dispatcher.sendTo(new PacketUnloadFrames(filename), player);
             }
+
+            /* An alle, nicht nur an die, von denen der Server glaubt, dass sie die
+             * Aufnahme haben: ein Client legt sie auch selbst an (eigene Aufnahme,
+             * Aktions-Editor), ohne dass der Server davon erfaehrt. */
+            Dispatcher.sendTo(new PacketUnloadFrames(filename), player);
         }
     }
 

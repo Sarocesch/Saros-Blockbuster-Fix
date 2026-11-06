@@ -206,5 +206,6 @@ public class ActionRegistry
         register("mwf_extra_slot", MWFExtraSlotAction.class);
         register("mwf_aim", MWFAimAction.class);
         register("mm_state", MMStateAction.class);
+        register("vehicle_hydraulic", VehicleHydraulicAction.class);
     }
 }

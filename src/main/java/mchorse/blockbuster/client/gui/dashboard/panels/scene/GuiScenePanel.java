@@ -100,12 +100,15 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     public GuiToggleElement renderLast;
     public GuiToggleElement freezeAtEnd;
     public GuiToggleElement hideOuterLayer;
+    public GuiToggleElement recorderSkin;
     public GuiTextElement idleRecord;
+    public GuiTextElement recordPlayer;
     public GuiTrackpadElement health;
     public GuiTrackpadElement foodLevel;
     public GuiTrackpadElement totalExperience;
 
     public GuiButtonElement record;
+    public GuiButtonElement recordGroup;
     public GuiButtonElement rename;
     public GuiButtonElement attach;
     public GuiButtonElement camera;
@@ -123,6 +126,27 @@ public class GuiScenePanel extends GuiBlockbusterPanel
 
     private SceneLocation location = new SceneLocation();
     private Replay replay;
+
+    /**
+     * Stand der Szene beim Laden vom Server. Beim Schliessen geht nur das an den
+     * Server, was sich dagegen geaendert hat - sonst ueberschrieb jeder, der das
+     * Menue zumachte, die Aenderungen der anderen.
+     */
+    private mchorse.blockbuster.recording.scene.SceneMerge.Baseline baseline;
+
+    /* Live-Abgleich: Eingaben seit dem letzten Senden, und eine Fassung vom
+     * Server, die noch auf das Einspielen wartet. */
+    private boolean touched;
+    private long lastInput;
+    private long lastHeartbeat;
+    private boolean announced;
+    private boolean pushedLive;
+    private SceneLocation pendingLive;
+
+    /* Wer die Szene ausser mir gerade offen hat (vom Server). */
+    private String editorsScene = "";
+    private List<String> editorNames = new java.util.ArrayList<String>();
+    private List<String> editorReplays = new java.util.ArrayList<String>();
 
     private IKey noneAudioTrack = IKey.lang("blockbuster.gui.director.none");
 
@@ -208,8 +232,14 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.freezeAtEnd.tooltip(IKey.str("This actor and the vehicle it drove stay where the scene ended. Cleared when the scene is triggered again."), Direction.RIGHT);
         this.hideOuterLayer = new GuiToggleElement(mc, IKey.str("Hide outer skin layer"), false, (b) -> this.replay.hideOuterLayer = b.isToggled());
         this.hideOuterLayer.tooltip(IKey.str("Hides the model's second skin layer (bodywear, armwear, legwear, hat) so worn clothing does not clip through it."), Direction.RIGHT);
+        this.recorderSkin = new GuiToggleElement(mc, IKey.str("Skin des Aufnehmenden (/skin + CPM)"), false, (b) -> this.replay.recorderSkin = b.isToggled());
+        this.recorderSkin.tooltip(IKey.str("Zeigt den Actor als echtes Spielermodell mit dem /skin des Spielers, der die Aufnahme gemacht hat - inklusive CPM-Modell und 3D-Augen. "
+            + "Geht auch, wenn dieser Spieler offline ist. Braucht eine Aufnahme ab diesem Update, oder das Aussehen wurde mit 'Update player data' nachgetragen. "
+            + "Ohne gespeichertes Aussehen sieht der Actor aus wie bisher. Wirkt beim naechsten Start der Szene."), Direction.RIGHT);
         this.idleRecord = new GuiTextElement(mc, 120, (str) -> this.replay.idleRecord = str).filename();
         this.idleRecord.tooltip(IKey.str("Recording this actor loops after the scene ends. Empty means it just stops."), Direction.RIGHT);
+        this.recordPlayer = new GuiTextElement(mc, 80, (str) -> this.replay.recordPlayer = str.trim());
+        this.recordPlayer.tooltip(IKey.str("Spielername, der diesen Actor bei der Gruppenaufnahme aufnimmt. Leer = spielt bei der Gruppenaufnahme einfach mit."), Direction.LEFT);
         this.health = new GuiTrackpadElement(mc, (value) -> this.replay.health = value.floatValue());
         this.health.limit(0);
         this.foodLevel = new GuiTrackpadElement(mc, (value) -> this.replay.foodLevel = value.intValue());
@@ -223,7 +253,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         left.add(Elements.label(IKey.lang("blockbuster.gui.director.health")).color(0xcccccc), this.health,
                  Elements.label(IKey.lang("blockbuster.gui.director.food_level")).color(0xcccccc), this.foodLevel,
                  Elements.label(IKey.lang("blockbuster.gui.director.total_experience")).color(0xcccccc), this.totalExperience,
-                 this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast, this.freezeAtEnd, this.hideOuterLayer,
+                 this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast, this.freezeAtEnd, this.hideOuterLayer, this.recorderSkin,
                  Elements.label(IKey.str("Idle loop")).color(0xcccccc), this.idleRecord);
         this.replays.add(this.selector, this.replayEditor);
 
@@ -263,8 +293,12 @@ public class GuiScenePanel extends GuiBlockbusterPanel
 
         this.pickMorph = new GuiNestedEdit(mc, (editing) -> ClientProxy.panels.addMorphs(this, editing, this.replay.morph));
         this.record = new GuiButtonElement(mc, IKey.lang("blockbuster.gui.record"), (b) -> this.sendRecordMessage());
+        this.recordGroup = new GuiButtonElement(mc, IKey.str("Gruppenaufnahme"), (b) -> this.recordGroup());
+        this.recordGroup.tooltip(IKey.str("Nimmt alle Actors mit eingetragenem 'Aufnahme-Spieler' gleichzeitig auf: gemeinsamer Countdown, die uebrigen Actors spielen ab. "
+            + "Nochmal klicken oder die Aufnahme-Taste des Startenden beendet die Aufnahme fuer alle. Auch per /scene recordall <szene>."), Direction.LEFT);
         GuiButtonElement edit = new GuiButtonElement(mc, IKey.lang("blockbuster.gui.director.edit_record"), (b) -> this.openRecordEditor());
         GuiButtonElement update = new GuiButtonElement(mc, IKey.lang("blockbuster.gui.director.update_data"), (b) -> this.updatePlayerData());
+        update.tooltip(IKey.str("Uebernimmt deine Spielerdaten in diese Aufnahme - jetzt auch deinen /skin und dein CPM-Modell (fuer 'Skin des Aufnehmenden')."), Direction.RIGHT);
         this.rename = new GuiButtonElement(mc, IKey.lang("blockbuster.gui.director.rename_prefix"), (b) -> this.renamePrefix());
         this.attach = new GuiButtonElement(mc, IKey.lang("blockbuster.gui.director.attach"), (b) -> this.attach());
         this.teleport = new GuiButtonElement(mc, IKey.lang("blockbuster.gui.director.tp"), (b) -> this.teleport());
@@ -301,7 +335,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.attach.tooltip(IKey.lang("blockbuster.gui.director.attach_tooltip"), Direction.LEFT);
         this.teleport.tooltip(IKey.lang("blockbuster.gui.director.tp_tooltip"), Direction.LEFT);
 
-        right.add(this.attach, this.record, update, this.rename, edit);
+        right.add(this.attach, this.record, this.recordGroup, update, this.rename, edit);
 
         if (CameraHandler.isApertureLoaded())
         {
@@ -317,6 +351,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
 
         right.add(this.teleport, this.eulerFilter);
         right.add(Elements.label(IKey.lang("blockbuster.gui.director.target")).color(0xcccccc).marginTop(12), this.target, Elements.label(IKey.lang("blockbuster.gui.director.playback_xp_food_level")), this.playbackXPFood);
+        right.add(Elements.label(IKey.str("Aufnahme-Spieler")).color(0xcccccc).marginTop(12), this.recordPlayer);
         this.replayEditor.add(this.pickMorph);
 
         /* Scene manager */
@@ -364,6 +399,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     public GuiScenePanel setScene(SceneLocation location)
     {
         this.location = location == null ? new SceneLocation() : location;
+        this.takeBaseline();
 
         this.subChildren.setVisible(!location.isEmpty());
         this.replayEditor.setVisible(!location.isEmpty());
@@ -397,9 +433,28 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     public GuiScenePanel set(SceneLocation location)
     {
         this.location = location;
+        this.takeBaseline();
         this.scenes.setScene(location.getScene());
 
         return this;
+    }
+
+    /**
+     * Neuen Vergleichsstand merken - nur fuer eine neu empfangene Szene, nicht
+     * wenn dieselbe nur wieder angezeigt wird (sonst gingen Aenderungen verloren).
+     */
+    private void takeBaseline()
+    {
+        Scene scene = this.location.getScene();
+
+        if (scene == null)
+        {
+            this.baseline = null;
+        }
+        else if (this.baseline == null || this.baseline.scene != scene)
+        {
+            this.baseline = new mchorse.blockbuster.recording.scene.SceneMerge.Baseline(scene);
+        }
     }
 
     protected void rotationFilter()
@@ -476,11 +531,20 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.setScene(this.location);
         this.scenes.setScene(this.location.getScene());
         this.scenes.updateSceneList();
+
+        /* Der Server ist fuehrend: beim Oeffnen immer seine aktuelle Fassung holen,
+         * nicht mit der vom letzten Mal weiterarbeiten. */
+        if (this.location.isScene())
+        {
+            Dispatcher.sendToServer(new mchorse.blockbuster.network.common.scene.PacketSceneRequestCast(new SceneLocation(this.location.getFilename())));
+        }
     }
 
     @Override
     public void close()
     {
+        this.leave();
+
         if (!OpHelper.isPlayerOp())
         {
             return;
@@ -493,7 +557,309 @@ public class GuiScenePanel extends GuiBlockbusterPanel
                 ClientProxy.panels.morphs.finish();
             }
 
-            Dispatcher.sendToServer(new PacketSceneCast(this.location));
+            this.saveChanges();
+        }
+    }
+
+    @Override
+    public void disappear()
+    {
+        super.disappear();
+
+        if (!ClientProxy.panels.morphs.hasParent())
+        {
+            this.saveChanges();
+        }
+
+        this.leave();
+    }
+
+    /**
+     * Eigene Aenderungen an den Server schicken (nur, was sich gegenueber dem
+     * letzten Stand geaendert hat). Der Server mischt sie in seine Fassung und
+     * schickt das Ergebnis an alle, die die Szene offen haben.
+     */
+    public void saveChanges()
+    {
+        this.saveChanges(false);
+    }
+
+    /**
+     * @param live Zwischenspeichern bei offenem Menue: der Server schreibt nur die
+     *             Datei. Das naechste normale Speichern laedt eine laufende Szene
+     *             dann einmal neu, auch wenn seitdem nichts mehr geaendert wurde.
+     */
+    private void saveChanges(boolean live)
+    {
+        this.touched = false;
+
+        Scene scene = this.location.getScene();
+
+        if (!OpHelper.isPlayerOp() || !this.location.isScene() || scene == null)
+        {
+            return;
+        }
+
+        PacketSceneCast packet = new PacketSceneCast(this.location);
+
+        if (this.baseline != null && this.baseline.scene == scene)
+        {
+            packet.merge = this.baseline.diff(!live && this.pushedLive);
+
+            /* Nichts geaendert: nichts schicken. Vorher speicherte jedes Schliessen
+             * die ganze Szene und lud eine laufende neu. */
+            if (packet.merge == null)
+            {
+                return;
+            }
+
+            packet.live = live;
+        }
+
+        this.pushedLive = live;
+
+        Dispatcher.sendToServer(packet);
+        this.baseline = new mchorse.blockbuster.recording.scene.SceneMerge.Baseline(scene);
+    }
+
+    /**
+     * Die Szene kennt der Server noch nicht (neu angelegt): beim naechsten
+     * Speichern ganz schicken statt nur Aenderungen.
+     */
+    public void markUnsaved()
+    {
+        this.baseline = null;
+        this.touched = true;
+        this.lastInput = System.currentTimeMillis();
+    }
+
+    private void leave()
+    {
+        if (this.announced && this.mc.player != null)
+        {
+            Dispatcher.sendToServer(new mchorse.blockbuster.network.common.scene.PacketSceneEditing("", ""));
+        }
+
+        this.announced = false;
+        this.lastHeartbeat = 0;
+        this.editorNames.clear();
+        this.editorReplays.clear();
+        this.selector.editedBy.clear();
+    }
+
+    /**
+     * Jede Sekunde melden, welche Szene und welcher Actor offen ist, und nach
+     * einer kurzen Eingabepause die eigenen Aenderungen live speichern.
+     */
+    private void liveTick()
+    {
+        if (!this.location.isScene() || this.mc.player == null || !OpHelper.isPlayerOp())
+        {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+
+        if (now - this.lastHeartbeat > 1000)
+        {
+            this.lastHeartbeat = now;
+            this.announced = true;
+            Dispatcher.sendToServer(new mchorse.blockbuster.network.common.scene.PacketSceneEditing(this.location.getFilename(), this.replay == null ? "" : this.replay.id));
+        }
+
+        boolean morphing = ClientProxy.panels.morphs.hasParent();
+
+        if (this.touched && !morphing && now - this.lastInput > 1500)
+        {
+            this.saveChanges(true);
+        }
+
+        if (this.pendingLive != null && !morphing && !this.touched)
+        {
+            this.applyLive();
+        }
+    }
+
+    /**
+     * Neue Fassung der Szene vom Server (jemand hat gespeichert, oder die
+     * Antwort auf das eigene Speichern mit den Aenderungen der anderen).
+     */
+    public void liveUpdate(SceneLocation location)
+    {
+        if (!this.location.isScene() || !location.isScene() || !this.location.getFilename().equals(location.getFilename()))
+        {
+            return;
+        }
+
+        this.pendingLive = location;
+
+        boolean shown = this.mc.currentScreen == this.dashboard && this.dashboard.panels.view.delegate == this;
+
+        /* Menue zu oder anderes Panel: es kann gerade niemand etwas aendern. */
+        if (!shown)
+        {
+            this.pendingLive = null;
+            this.set(location);
+        }
+    }
+
+    /**
+     * Wartende Fassung einspielen. Nur ohne eigene, noch nicht gesendete
+     * Eingaben (die gehen zuerst raus, die Antwort enthaelt dann beides) und
+     * nicht waehrend der Morph-Editor offen ist.
+     */
+    private void applyLive()
+    {
+        SceneLocation incoming = this.pendingLive;
+        Scene current = this.location.getScene();
+
+        this.pendingLive = null;
+
+        if (incoming == null || incoming.getScene() == null || !incoming.getFilename().equals(this.location.getFilename()))
+        {
+            return;
+        }
+
+        String id = this.replay == null ? null : this.replay.id;
+        int index = this.replay == null || current == null ? -1 : current.replays.indexOf(this.replay);
+        GuiElement view = this.mainView.delegate;
+
+        this.setScene(incoming);
+
+        List<Replay> replays = incoming.getScene().replays;
+        Replay pick = null;
+
+        if (index >= 0 && index < replays.size() && replays.get(index).id.equals(id))
+        {
+            pick = replays.get(index);
+        }
+
+        for (int i = 0; pick == null && id != null && i < replays.size(); i++)
+        {
+            if (replays.get(i).id.equals(id))
+            {
+                pick = replays.get(i);
+            }
+        }
+
+        if (pick == null && index >= 0 && index < replays.size())
+        {
+            pick = replays.get(index);
+        }
+
+        if (pick != null)
+        {
+            this.setReplay(pick);
+        }
+
+        this.mainView.setDelegate(view);
+    }
+
+    public void setEditors(String scene, List<String> names, List<String> replays)
+    {
+        this.editorsScene = scene;
+        this.editorNames = names;
+        this.editorReplays = replays;
+        this.selector.editedBy.clear();
+
+        for (int i = 0; i < names.size(); i++)
+        {
+            String id = replays.get(i);
+
+            if (!id.isEmpty())
+            {
+                String other = this.selector.editedBy.get(id);
+
+                this.selector.editedBy.put(id, other == null ? names.get(i) : other + ", " + names.get(i));
+            }
+        }
+    }
+
+    private void input()
+    {
+        this.touched = true;
+        this.lastInput = System.currentTimeMillis();
+    }
+
+    @Override
+    public boolean mouseClicked(GuiContext context)
+    {
+        this.input();
+
+        return super.mouseClicked(context);
+    }
+
+    @Override
+    public void mouseReleased(GuiContext context)
+    {
+        if (this.touched)
+        {
+            this.input();
+        }
+
+        super.mouseReleased(context);
+    }
+
+    @Override
+    public boolean mouseScrolled(GuiContext context)
+    {
+        this.input();
+
+        return super.mouseScrolled(context);
+    }
+
+    @Override
+    public boolean keyTyped(GuiContext context)
+    {
+        this.input();
+
+        return super.keyTyped(context);
+    }
+
+    /**
+     * Oben links: wer die Szene ausser mir offen hat. Ueber dem Actor eine
+     * Warnung, wenn jemand anderes gerade denselben Actor ausgewaehlt hat.
+     */
+    private void drawEditors()
+    {
+        boolean current = this.location.isScene() && this.location.getFilename().equals(this.editorsScene);
+
+        if (!current || this.editorNames.isEmpty())
+        {
+            return;
+        }
+
+        StringBuilder text = new StringBuilder("Auch im Editor: ");
+        StringBuilder same = new StringBuilder();
+
+        for (int i = 0; i < this.editorNames.size(); i++)
+        {
+            String name = this.editorNames.get(i);
+            String id = this.editorReplays.get(i);
+
+            text.append(i > 0 ? ", " : "").append(name);
+
+            if (!id.isEmpty())
+            {
+                text.append(" (").append(id).append(")");
+            }
+
+            if (this.replay != null && !this.replay.id.isEmpty() && this.replay.id.equals(id))
+            {
+                same.append(same.length() > 0 ? ", " : "").append(name);
+            }
+        }
+
+        String line = this.font.trimStringToWidth(text.toString(), Math.max(60, this.area.w / 2 - 20));
+
+        this.font.drawStringWithShadow(line, this.area.x + 10, this.area.y + 24, 0xffcc55);
+
+        if (same.length() > 0 && this.mainView.delegate == this.replays)
+        {
+            String warning = same + " bearbeitet diesen Actor gerade auch - Aenderungen werden live abgeglichen";
+
+            warning = this.font.trimStringToWidth(warning, Math.max(60, this.area.w / 2));
+            this.drawCenteredString(this.font, warning, this.area.mx(), this.area.y + 38, 0xff6655);
         }
     }
 
@@ -558,7 +924,9 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.renderLast.toggled(this.replay.renderLast);
         this.freezeAtEnd.toggled(this.replay.freezeAtEnd);
         this.hideOuterLayer.toggled(this.replay.hideOuterLayer);
+        this.recorderSkin.toggled(this.replay.recorderSkin);
         this.idleRecord.setText(this.replay.idleRecord);
+        this.recordPlayer.setText(this.replay.recordPlayer);
         this.health.setValue(this.replay.health);
         this.foodLevel.setValue(this.replay.foodLevel);
         this.totalExperience.setValue(this.replay.totalExperience);
@@ -778,6 +1146,8 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     @Override
     public void draw(GuiContext context)
     {
+        this.liveTick();
+
         if (this.scenes.isVisible())
         {
             int x = this.scenes.area.ex() - 20;
@@ -827,6 +1197,8 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         }
 
         super.draw(context);
+
+        this.drawEditors();
     }
 
     public void plause()
@@ -855,6 +1227,21 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         {
             Dispatcher.sendToServer(new PacketSceneRecord(this.location, replay.id));
         }
+    }
+
+    /**
+     * Gruppenaufnahme starten oder beenden. Das Menue geht dabei zu - das
+     * speichert vorher die eingetragenen Aufnahme-Spieler.
+     */
+    private void recordGroup()
+    {
+        if (!OpHelper.isPlayerOp() || !this.location.isScene())
+        {
+            return;
+        }
+
+        this.mc.displayGuiScreen(null);
+        Dispatcher.sendToServer(new PacketSceneRecord(this.location, mchorse.blockbuster.recording.scene.GroupRecording.ALL));
     }
 
     public void pause()

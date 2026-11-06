@@ -58,6 +58,7 @@ public class SceneManager
         this.toPut.clear();
 
         this.scenes.clear();
+        SceneEditors.reset();
     }
 
     /**
@@ -110,6 +111,9 @@ public class SceneManager
 
         this.toRemove.clear();
         this.toPut.clear();
+
+        GroupRecording.tick();
+        SceneEditors.tick();
     }
 
     /**
@@ -139,6 +143,13 @@ public class SceneManager
      */
     public void record(String filename, String record, int offset, EntityPlayerMP player)
     {
+        /* Gruppenaufnahme starten/beenden, oder die Aufnahme-Taste eines Spielers,
+         * der gerade in einer Gruppenaufnahme steckt. */
+        if (GroupRecording.handleRecordToggle(filename, record, player))
+        {
+            return;
+        }
+
         final Scene scene = this.get(filename, player.world);
 
         if (scene != null)
@@ -260,6 +271,7 @@ public class SceneManager
         NBTTagCompound compound = new NBTTagCompound();
 
         scene.toNBT(compound);
+        keepHistory(filename, false);
 
         CompressedStreamTools.writeCompressed(compound, new FileOutputStream(file));
     }
@@ -289,6 +301,8 @@ public class SceneManager
 
         if (file.exists())
         {
+            keepHistory(filename, true);
+
             return file.delete();
         }
 
@@ -296,9 +310,70 @@ public class SceneManager
     }
 
     /**
+     * Vor dem Ueberschreiben oder Loeschen den bisherigen Stand einer Szene nach
+     * blockbuster/scenes_history/&lt;szene&gt;/ legen. Mehrere Leute speichern jetzt
+     * live in dieselbe Szene - geht dabei etwas schief, laesst sich der alte Stand
+     * zurueckholen (Datei nach blockbuster/scenes/&lt;szene&gt;.dat kopieren).
+     *
+     * Beim Speichern hoechstens ein Stand pro Minute, beim Loeschen immer.
+     * Es bleiben die letzten 100 Staende je Szene.
+     */
+    private static void keepHistory(String filename, boolean always)
+    {
+        try
+        {
+            File file = sceneFile(filename);
+
+            if (!file.isFile())
+            {
+                return;
+            }
+
+            File folder = new File(file.getParentFile().getParentFile(), "scenes_history/" + filename);
+            File[] old = folder.listFiles();
+            long now = System.currentTimeMillis();
+
+            if (!always && old != null)
+            {
+                for (File f : old)
+                {
+                    if (now - f.lastModified() < 60000)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            folder.mkdirs();
+
+            String stamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date(now));
+            File target = new File(folder, stamp + (always ? "_geloescht" : "") + ".dat");
+
+            java.nio.file.Files.copy(file.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            target.setLastModified(now);
+
+            old = folder.listFiles();
+
+            if (old != null && old.length > 100)
+            {
+                java.util.Arrays.sort(old, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+
+                for (int i = 0; i < old.length - 100; i++)
+                {
+                    old[i].delete();
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Returns a file instance to the scene by given filename
      */
-    private File sceneFile(String filename)
+    public static File sceneFile(String filename)
     {
         return Utils.serverFile("blockbuster/scenes", filename);
     }

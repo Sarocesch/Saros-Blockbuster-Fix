@@ -57,10 +57,22 @@ public class Replay
     public boolean hideOuterLayer = true;
 
     /**
+     * Actor als echtes Spielermodell mit /skin und CPM-Modell des Aufnehmenden
+     * zeigen - sofern die Aufnahme beides gespeichert hat. Sonst wie bisher.
+     */
+    public boolean recorderSkin = false;
+
+    /**
      * Aufnahme, die dieser Actor nach dem Ende in Schleife weiterspielt.
      * Leer heisst: nichts, es bleibt beim bisherigen Verhalten.
      */
     public String idleRecord = "";
+
+    /**
+     * Spieler, der diesen Actor bei der Gruppenaufnahme aufnimmt. Leer heisst:
+     * spielt bei der Gruppenaufnahme einfach mit.
+     */
+    public String recordPlayer = "";
     public int foodLevel = 20;
     public int totalExperience = 0;
 
@@ -110,7 +122,27 @@ public class Replay
 
         actor.setHealth(this.health);
         actor.renderLast = this.renderLast;
+
+        if (!actor.world.isRemote)
+        {
+            actor.setAppearance(this.recorderSkin ? this.recordedAppearance() : null, this.hideOuterLayer);
+        }
+
         actor.notifyPlayers();
+    }
+
+    private mchorse.blockbuster.recording.appearance.ActorAppearance recordedAppearance()
+    {
+        try
+        {
+            mchorse.blockbuster.recording.data.Record record = mchorse.blockbuster.CommonProxy.manager.get(this.id);
+
+            return record == null ? null : record.appearance;
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
     }
 
     /**
@@ -176,6 +208,8 @@ public class Replay
          * ein bewusstes Ausschalten beim naechsten Laden wieder ueberstimmt. */
         tag.setBoolean("FreezeAtEnd", this.freezeAtEnd);
         tag.setBoolean("HideOuterLayer", this.hideOuterLayer);
+        if (this.recorderSkin) tag.setBoolean("RecorderSkin", true);
+        if (!this.recordPlayer.isEmpty()) tag.setString("RecordPlayer", this.recordPlayer);
         if (this.health != 20) tag.setFloat("Health", this.health);
         if (this.foodLevel != 20) tag.setInteger("FoodLevel", this.foodLevel);
         if (this.totalExperience != 0) tag.setInteger("TotalExperience", this.totalExperience);
@@ -202,6 +236,8 @@ public class Replay
         if (tag.hasKey("TP")) this.teleportBack = tag.getBoolean("TP");
         if (tag.hasKey("FreezeAtEnd")) this.freezeAtEnd = tag.getBoolean("FreezeAtEnd");
         if (tag.hasKey("HideOuterLayer")) this.hideOuterLayer = tag.getBoolean("HideOuterLayer");
+        this.recorderSkin = tag.getBoolean("RecorderSkin");
+        this.recordPlayer = tag.getString("RecordPlayer");
         if (tag.hasKey("Health")) this.health = tag.getFloat("Health");
         if (tag.hasKey("RenderLast")) this.renderLast = tag.getBoolean("RenderLast");
         if (tag.hasKey("PlaybackXPFoodLevel")) this.playBackXPFood = tag.getBoolean("PlaybackXPFoodLevel");
@@ -231,6 +267,8 @@ public class Replay
         buf.writeInt(this.foodLevel);
         buf.writeInt(this.totalExperience);
         buf.writeBoolean(this.playBackXPFood);
+        buf.writeBoolean(this.recorderSkin);
+        ByteBufUtils.writeUTF8String(buf, this.recordPlayer);
     }
 
     public void fromBuf(ByteBuf buf)
@@ -255,6 +293,8 @@ public class Replay
         this.foodLevel = buf.readInt();
         this.totalExperience = buf.readInt();
         this.playBackXPFood = buf.readBoolean();
+        this.recorderSkin = buf.readBoolean();
+        this.recordPlayer = ByteBufUtils.readUTF8String(buf);
     }
 
     @Override
@@ -294,6 +334,8 @@ public class Replay
         replay.teleportBack = this.teleportBack;
         replay.freezeAtEnd = this.freezeAtEnd;
         replay.hideOuterLayer = this.hideOuterLayer;
+        replay.recorderSkin = this.recorderSkin;
+        replay.recordPlayer = this.recordPlayer;
         replay.idleRecord = this.idleRecord;
         replay.renderLast = this.renderLast;
         replay.health = this.health;

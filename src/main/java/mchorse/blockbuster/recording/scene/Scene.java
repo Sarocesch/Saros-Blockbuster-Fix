@@ -335,6 +335,12 @@ public class Scene
             player.actorUpdated = false;
         }
 
+        /* Chunks unter den Actors mitfuehren - auch pausiert (Kamera-Editor). */
+        if (this.playing)
+        {
+            ScenePlaybackChunks.update(this);
+        }
+
         if (this.playing && !this.paused)
         {
             if (this.tick % 4 == 0 && !this.checkActors()) return;
@@ -458,11 +464,27 @@ public class Scene
      */
     private static final Map<String, Long> RESTARTED = new java.util.HashMap<String, Long>();
 
+    /** Welt-Tick des letzten /scene clear all, gilt fuer jede Szene. */
+    private static long clearedAll = -1;
+
     public static boolean wasRestartedSince(String scene, long since)
     {
         Long restarted = RESTARTED.get(scene);
 
-        return restarted != null && restarted.longValue() > since;
+        return restarted != null && restarted.longValue() > since || clearedAll > since;
+    }
+
+    /** Fuer Actors in gerade entladenen Chunks: sie raeumen sich beim Laden selbst weg. */
+    public static void markCleared(String scene, long time)
+    {
+        if (scene == null)
+        {
+            clearedAll = time;
+        }
+        else
+        {
+            RESTARTED.put(scene, time);
+        }
     }
 
     private void clearFrozenActors()
@@ -471,6 +493,8 @@ public class Scene
         {
             if (actor != null && !actor.isDead)
             {
+                /* Erst aus dem Sitz: ein toter Mitfahrer wird von der Welt nie ausgetragen. */
+                actor.dismountRidingEntity();
                 actor.setDead();
             }
         }
@@ -501,6 +525,7 @@ public class Scene
             if (entity instanceof EntityActor && !entity.isDead
                     && id.equals(((EntityActor) entity).leftoverScene))
             {
+                entity.dismountRidingEntity();
                 entity.setDead();
             }
         }
@@ -524,7 +549,7 @@ public class Scene
         }
 
         this.clearFrozenActors();
-        this.collectActors(null);
+        this.collectActors(java.util.Collections.<Replay>emptyList());
 
         EntityLivingBase firstActor = null;
 
@@ -542,6 +567,7 @@ public class Scene
         }
 
         this.playing = true;
+        ScenePlaybackChunks.hold(this);
         this.sendCommand(this.startCommand);
 
         if (firstActor != null)
@@ -564,6 +590,17 @@ public class Scene
      */
     public void startPlayback(String exception, int tick)
     {
+        Replay replay = this.getByFile(exception);
+
+        this.startPlayback(replay == null ? java.util.Collections.<Replay>emptyList() : java.util.Collections.singletonList(replay), tick);
+    }
+
+    /**
+     * Wie oben, aber ohne mehrere Replays - fuer die Gruppenaufnahme, bei der
+     * mehrere Spieler gleichzeitig ihre Actors aufnehmen.
+     */
+    public void startPlayback(java.util.Collection<Replay> exceptions, int tick)
+    {
         if (this.getWorld().isRemote || this.playing)
         {
             return;
@@ -573,7 +610,7 @@ public class Scene
          * scene triggered through this path stacks a fresh set of actors on
          * top of the frozen ones from the previous run. */
         this.clearFrozenActors();
-        this.collectActors(this.getByFile(exception));
+        this.collectActors(exceptions);
 
         for (Map.Entry<Replay, RecordPlayer> entry : this.actors.entrySet())
         {
@@ -584,6 +621,7 @@ public class Scene
         }
 
         this.playing = true;
+        ScenePlaybackChunks.hold(this);
         this.sendCommand(this.startCommand);
 
         this.audioHandler.startAudio(tick);
@@ -604,9 +642,12 @@ public class Scene
             return false;
         }
 
+        /* Die bisherigen Actors weg, nicht einfrieren: es werden gleich neue
+         * gespawnt. Mit Freeze at end blieben sonst die alten stehen und jeder
+         * Spieler sah danach zwei Actors uebereinander. */
         if (!this.actors.isEmpty())
         {
-            this.stopPlayback(true);
+            this.stopPlayback(true, true);
         }
 
         for (Replay replay : this.replays)
@@ -619,7 +660,8 @@ public class Scene
             }
         }
 
-        this.collectActors(null);
+        this.clearFrozenActors();
+        this.collectActors(java.util.Collections.<Replay>emptyList());
         this.playing = true;
         this.paused = true;
 
@@ -652,6 +694,7 @@ public class Scene
 
         this.audioHandler.pauseAudio(tick);
         this.tick = tick;
+        ScenePlaybackChunks.hold(this);
 
         return true;
     }
@@ -662,6 +705,14 @@ public class Scene
      * @param triggered - true if it was caused by something, and false if it just ended playing
      */
     public void stopPlayback(boolean triggered)
+    {
+        this.stopPlayback(triggered, false);
+    }
+
+    /**
+     * @param forceKill - true raeumt alle Actors weg, auch die mit Freeze oder Idle
+     */
+    public void stopPlayback(boolean triggered, boolean forceKill)
     {
         if (!triggered && !this.wasRecording || triggered)
         {
@@ -682,10 +733,10 @@ public class Scene
             /* Freeze keeps fake actors standing at their last frame. Real
              * players are never frozen - they get their own state restored
              * below and must stay controllable. */
-            boolean freeze = entry.getKey().freezeAtEnd && !actor.realPlayer && actor.actor != null;
+            boolean freeze = !forceKill && entry.getKey().freezeAtEnd && !actor.realPlayer && actor.actor != null;
 
             String idle = entry.getKey().idleRecord;
-            boolean hasIdle = idle != null && !idle.isEmpty() && !actor.realPlayer && actor.actor != null;
+            boolean hasIdle = !forceKill && idle != null && !idle.isEmpty() && !actor.realPlayer && actor.actor != null;
 
             actor.kill = !freeze && !hasIdle;
             System.out.println("[Blockbuster] Szenenende: Actor " + (actor.actor == null ? "?" : String.valueOf(actor.actor.getEntityId()))
@@ -725,6 +776,7 @@ public class Scene
 
         this.actors.clear();
         this.playing = false;
+        ScenePlaybackChunks.release(this.getId());
         this.sendCommand(this.stopCommand);
     }
 
@@ -752,14 +804,14 @@ public class Scene
      * world and also the ones that doesn't exist (they will be created and
      * spawned later on).
      */
-    private void collectActors(Replay exception)
+    private void collectActors(java.util.Collection<Replay> exceptions)
     {
         this.actors.clear();
         this.actorsCount = 0;
 
         for (Replay replay : this.replays)
         {
-            if (replay == exception || !replay.enabled)
+            if (isException(exceptions, replay) || !replay.enabled)
             {
                 continue;
             }
@@ -871,6 +923,20 @@ public class Scene
         }
     }
 
+    /** Nach Identitaet, nicht equals: Replay.equals vergleicht nur ein paar Felder. */
+    private static boolean isException(java.util.Collection<Replay> exceptions, Replay replay)
+    {
+        for (Replay exception : exceptions)
+        {
+            if (exception == replay)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Get target player
      */
@@ -972,7 +1038,7 @@ public class Scene
      */
     public void reload(int tick)
     {
-        this.stopPlayback(true);
+        this.stopPlayback(true, true);
         this.spawn(tick);
     }
 
@@ -1134,6 +1200,12 @@ public class Scene
      */
     public void syncAudio(EntityPlayerMP player) {
         this.audioHandler.syncPlayer(player);
+    }
+
+    /** Fuer {@link SceneMerge}: Tonspur einer anderen Fassung uebernehmen. */
+    public void copyAudio(Scene scene)
+    {
+        this.audioHandler.copy(scene.audioHandler);
     }
 
     public void copy(Scene scene)

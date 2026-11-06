@@ -9,6 +9,8 @@ import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -158,8 +160,24 @@ public class HoloRenderer
         final int savedPass = net.minecraftforge.client.MinecraftForgeClient.getRenderPass();
         final boolean hadLighting = GlStateManager.glGetInteger(2896) != 0;
 
+        /* RenderLast (und alles, was dort mitlaeuft) kommt direkt nach dem Blockschaden-Overlay,
+         * das Blending mit DST_COLOR/SRC_COLOR anlaesst. DynamX schaltet Blend nur fuer Glas um,
+         * die undurchsichtigen Teile wurden dadurch mit dem Hintergrund gemischt. */
+        final boolean hadBlend = GL11.glIsEnabled(GL11.GL_BLEND);
+        final boolean hadDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        final int srcRgb = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB);
+        final int dstRgb = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB);
+        final int srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+        final int dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
+
         try
         {
+            GlStateManager.enableBlend();
+            GlStateManager.disableBlend();
+            GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
+            GlStateManager.depthMask(true);
+            GlStateManager.color(1F, 1F, 1F, 1F);
+
             manager.setRenderShadow(false);
             net.minecraftforge.client.ForgeHooksClient.setRenderPass(0);
             manager.renderEntity((net.minecraft.entity.Entity) entity, 0, 0, 0, 0F, partialTicks, false);
@@ -182,6 +200,17 @@ public class HoloRenderer
                 GlStateManager.enableLighting();
             }
 
+            if (hadBlend)
+            {
+                GlStateManager.enableBlend();
+            }
+            else
+            {
+                GlStateManager.disableBlend();
+            }
+
+            GlStateManager.tryBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            GlStateManager.depthMask(hadDepthMask);
             GlStateManager.color(1F, 1F, 1F, 1F);
         }
     }

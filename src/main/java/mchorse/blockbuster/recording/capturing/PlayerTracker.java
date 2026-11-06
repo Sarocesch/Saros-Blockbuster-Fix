@@ -29,6 +29,8 @@ public class PlayerTracker
 
     /* Items to track */
     private ItemStack[] items = new ItemStack[6];
+    /* MW-Waffenlicht/Laser werden am selben ItemStack per NBT umgeschaltet - die Referenz bleibt gleich */
+    private int[] lightFlags = new int[6];
     private ItemStack[] hotbar = new ItemStack[9];
     /**
      * Runtime variable to track the complete hotbar for the fist frame
@@ -111,10 +113,15 @@ public class PlayerTracker
     {
         if (!item.isEmpty())
         {
-            if (item != this.items[slot])
+            int flags = lightFlags(item);
+
+            if (item != this.items[slot] || flags != this.lightFlags[slot])
             {
                 this.items[slot] = item;
-                this.recorder.actions.add((hotbarslot != -1) ? new EquipAction((byte) slot,(byte) hotbarslot, item) : new EquipAction((byte) slot, item));
+                this.lightFlags[slot] = flags;
+                /* Kopie: writeToNBT teilt sonst das NBT mit der echten Waffe, gespeichert wuerde der Zustand vom Aufnahme-Ende */
+                ItemStack snapshot = item.copy();
+                this.recorder.actions.add((hotbarslot != -1) ? new EquipAction((byte) slot,(byte) hotbarslot, snapshot) : new EquipAction((byte) slot, snapshot));
 
                 return true;
             }
@@ -128,6 +135,17 @@ public class PlayerTracker
         }
 
         return false;
+    }
+
+    private static int lightFlags(ItemStack item)
+    {
+        if (!item.hasTagCompound())
+        {
+            return 0;
+        }
+
+        return (item.getTagCompound().getBoolean("flashlight_enabled") ? 1 : 0)
+            | (item.getTagCompound().getBoolean("laser_enabled") ? 2 : 0);
     }
 
     /**

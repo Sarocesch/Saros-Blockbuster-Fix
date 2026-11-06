@@ -91,6 +91,16 @@ public class LayerActorMWFArmor implements LayerRenderer<EntityLivingBase>
         REPORTED.clear();
     }
 
+    /**
+     * Aktuelle Weste eines Actors, fuer das Spielermodell (ActorPuppet).
+     */
+    public static ItemStack getVest(int entityId)
+    {
+        ItemStack stack = VESTS.get(entityId);
+
+        return stack == null ? ItemStack.EMPTY : stack;
+    }
+
     private static boolean resolve()
     {
         if (resolved) return available;

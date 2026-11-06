@@ -44,6 +44,12 @@ public class ServerHandlerFramesChunk extends ServerMessageHandler<PacketFramesC
                 serverRecord.fillMissingActions();
 
                 CommonProxy.manager.chunks.remove(message.filename);
+
+                /* Neue Aufnahme: jeder Client hat ab jetzt eine veraltete Fassung im
+                 * Cache, auch der Aufnehmende (sein Client haengt beim Stoppen die
+                 * alte Fassung hinten an). Ohne das spielten andere Spieler beim
+                 * naechsten Start die alte Bahn, waehrend der Server die neue spielte. */
+                RecordUtils.unloadRecord(serverRecord);
             }
             catch (IOException e)
             {

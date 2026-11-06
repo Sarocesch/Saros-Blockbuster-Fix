@@ -39,9 +39,6 @@ public final class DynamXVehiclePin
     @SuppressWarnings("unchecked")
     private static final Map<Entity, Entity>[] DRIVEN = new Map[] {new WeakHashMap<Entity, Entity>(), new WeakHashMap<Entity, Entity>()};
 
-    /** Zaehler fuer die Abweichungs-Diagnose (nur Server). */
-    private static final Map<Entity, int[]> REPORT = new WeakHashMap<Entity, int[]>();
-
     private static boolean conventionChecked;
     private static boolean warned;
 
@@ -114,17 +111,26 @@ public final class DynamXVehiclePin
             {
                 velocity.set(dx * 20F, dy * 20F, dz * 20F);
             }
-
-            if (side == 0)
-            {
-                report(entity, previous, velocity);
-            }
         }
 
         LAST[side].put(vehicle, new float[] {x, y, z});
         DRIVEN[side].put(actor, vehicle);
 
         apply(entity, new Vector3f(x, y, z), new Quaternion(qx, qy, qz, qw), velocity, true);
+
+        /* Die Minecraft-Felder sofort im Spiel-Thread setzen, nicht erst wenn der
+         * Physik-Thread den Auftrag abarbeitet.
+         *
+         * DynamX liest die Fahrzeugposition jeden Tick aus der Physik
+         * (updateMinecraftPos). Der Physik-Thread laeuft aber in eigenem Takt: kam er
+         * nicht mit, stand das Auto einen Tick still und sprang danach doppelt weit -
+         * das war das Zuckeln. Gezeichnet wird zwischen prevPos und pos interpoliert,
+         * und beides stimmt jetzt Tick fuer Tick mit der Aufnahme ueberein. Der Pin
+         * oben bleibt noetig, damit Kollision und Physik ebenfalls dort stehen. */
+        entity.setPosition(x, y, z);
+        entity.physicsPosition.set(x, y, z);
+        entity.physicsRotation.set(qx, qy, qz, qw);
+        entity.renderRotation.set(qx, qy, qz, qw);
     }
 
     /**
@@ -269,34 +275,6 @@ public final class DynamXVehiclePin
         {
             entity.physicsRotation.set(rotation);
         }
-    }
-
-    /**
-     * Alle 20 Pins: wie weit hat die Physik das Fahrzeug seit dem letzten Pin bewegt?
-     * Bei kinematischer Fuehrung ~0. Das ist der objektive Beweis fuer "exakte Bahn".
-     */
-    private static void report(PhysicsEntity<?> entity, float[] previous, Vector3f velocity)
-    {
-        int[] counter = REPORT.get(entity);
-
-        if (counter == null)
-        {
-            counter = new int[1];
-            REPORT.put(entity, counter);
-        }
-
-        if (counter[0]++ % 20 != 0)
-        {
-            return;
-        }
-
-        float dx = entity.physicsPosition.x - previous[0];
-        float dy = entity.physicsPosition.y - previous[1];
-        float dz = entity.physicsPosition.z - previous[2];
-
-        System.out.println(String.format(java.util.Locale.ROOT,
-            "[Blockbuster] Fahrzeug-Pin %d: Abweichung von der Bahn %.3f Bloecke, Tempo %.1f m/s",
-            entity.getEntityId(), Math.sqrt(dx * dx + dy * dy + dz * dz), velocity.length()));
     }
 
     /**

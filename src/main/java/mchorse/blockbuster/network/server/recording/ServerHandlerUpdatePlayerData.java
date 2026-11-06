@@ -9,6 +9,7 @@ import mchorse.mclib.network.ServerMessageHandler;
 import mchorse.mclib.utils.OpHelper;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.text.TextFormatting;
 
 public class ServerHandlerUpdatePlayerData extends ServerMessageHandler<PacketUpdatePlayerData>
 {
@@ -49,6 +50,19 @@ public class ServerHandlerUpdatePlayerData extends ServerMessageHandler<PacketUp
             {
                 record.playerData.setTag("MPMData", tag);
             }
+        }
+
+        /* Damit bekommen auch aeltere Aufnahmen /skin und CPM-Modell, ohne neu aufzunehmen. */
+        mchorse.blockbuster.recording.appearance.ActorAppearance look = mchorse.blockbuster.recording.appearance.AppearanceCapture.capture(player);
+
+        if (look != null)
+        {
+            record.appearance = look;
+            player.sendMessage(new net.minecraft.util.text.TextComponentString(TextFormatting.GRAY + "Aussehen fuer " + message.record + " uebernommen: " + TextFormatting.WHITE + look.describe()));
+        }
+        else
+        {
+            player.sendMessage(new net.minecraft.util.text.TextComponentString(TextFormatting.GRAY + "Kein /skin oder CPM-Modell gefunden - Aussehen von " + message.record + " bleibt unveraendert"));
         }
 
         record.dirty = true;

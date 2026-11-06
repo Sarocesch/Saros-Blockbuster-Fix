@@ -26,6 +26,14 @@ public class ClientHandlerSyncTick extends ClientMessageHandler<PacketSyncTick>
 
         if (playback != null && playback.record != null)
         {
+            /* Ein Tick Abweichung ist nur schwankende Laufzeit des Pakets. Hart
+             * nachgestellt sprang die Wiedergabe dabei um ein ganzes Bild - bei einem
+             * Flugzeug mehrere Bloecke, sichtbar als Zucken in der Luft. */
+            if (playback.playing && Math.abs(playback.tick - message.tick) <= 1)
+            {
+                return;
+            }
+
             playback.tick = message.tick;
 
             if (!playback.playing)

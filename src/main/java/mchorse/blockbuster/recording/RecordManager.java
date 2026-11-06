@@ -163,6 +163,16 @@ public class RecordManager
                 recorder.record.playerData.setTag("MPMData", tag);
             }
         }
+
+        if (player instanceof net.minecraft.entity.player.EntityPlayerMP)
+        {
+            recorder.record.appearance = mchorse.blockbuster.recording.appearance.AppearanceCapture.capture((net.minecraft.entity.player.EntityPlayerMP) player);
+
+            if (recorder.record.appearance != null)
+            {
+                System.out.println("[Blockbuster] Aufnahme " + recorder.record.filename + ": Aussehen gespeichert - " + recorder.record.appearance.describe());
+            }
+        }
     }
 
     /**

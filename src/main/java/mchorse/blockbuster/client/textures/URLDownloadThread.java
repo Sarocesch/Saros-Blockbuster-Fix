@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.imageio.ImageIO;
 
+import mchorse.blockbuster.network.Dispatcher;
+import mchorse.blockbuster.network.common.PacketSkinRequest;
 import mchorse.blockbuster.recording.actions.Action;
 import mchorse.blockbuster.recording.actions.MorphAction;
 import mchorse.mclib.utils.ReflectionUtils;
@@ -83,6 +85,9 @@ public class URLDownloadThread implements Runnable
     /** URLs, fuer die gerade irgendwo der schwarze Platzhalter angezeigt wird. */
     private static final Set<String> PLACEHOLDER = ConcurrentHashMap.newKeySet();
 
+    /** URLs, nach denen schon beim Server gefragt wurde. */
+    private static final Set<String> ASKED = ConcurrentHashMap.newKeySet();
+
     private static File cacheDir;
 
     private ResourceLocation url;
@@ -117,20 +122,85 @@ public class URLDownloadThread implements Runnable
      */
     public static byte[] cached(ResourceLocation url)
     {
-        String key = url.toString();
-        byte[] data = CACHE.get(key);
+        return cachedBytes(url.toString());
+    }
+
+    public static byte[] cachedBytes(String url)
+    {
+        byte[] data = CACHE.get(url);
 
         if (data == null)
         {
-            data = readDisk(key);
+            data = readDisk(url);
 
             if (data != null)
             {
-                CACHE.put(key, data);
+                CACHE.put(url, data);
             }
         }
 
         return data;
+    }
+
+    /**
+     * Beim Server nachfragen, wenn der Link tot ist.
+     *
+     * <p>Discord-Links laufen ab: derselbe Link, der hier noch aus dem
+     * Zwischenspeicher kommt, liefert beim naechsten Spieler HTTP 404. Der Server
+     * fragt dann die uebrigen Spieler und reicht das Bild weiter.</p>
+     */
+    private static void askServer(final String url)
+    {
+        if (!ASKED.add(url))
+        {
+            return;
+        }
+
+        /* Wir stecken hier im Download-Thread - gesendet wird im Spiel-Thread. */
+        Minecraft.getMinecraft().addScheduledTask(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    Dispatcher.sendToServer(new PacketSkinRequest(url));
+                }
+                catch (Throwable t)
+                {
+                    System.out.println("[Blockbuster] Skin-Anfrage an den Server fehlgeschlagen: " + t);
+                }
+            }
+        });
+    }
+
+    /**
+     * Bild vom Server uebernehmen (der Link selbst ist nicht mehr erreichbar).
+     */
+    public static void acceptFromServer(String url, byte[] data)
+    {
+        try
+        {
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(data));
+
+            if (image == null)
+            {
+                return;
+            }
+
+            CACHE.put(url, data);
+            FRESH.add(url);
+            writeDisk(url, data);
+            PLACEHOLDER.remove(url);
+
+            URLTextureUploader.enqueue(new TextureLocation(url), toIntArgb(image));
+
+            System.out.println("[Blockbuster] Skin vom Server bekommen: " + url);
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] Skin vom Server nicht lesbar: " + t);
+        }
     }
 
     public static void markPlaceholder(ResourceLocation url)
@@ -541,7 +611,10 @@ public class URLDownloadThread implements Runnable
 
             if (image == null)
             {
-                System.out.println("[Blockbuster] Skin bleibt schwarz, " + RETRY_DELAYS.length + " Versuche gescheitert: " + this.url + " -> " + problem);
+                System.out.println("[Blockbuster] Skin nicht ladbar (" + RETRY_DELAYS.length + " Versuche): " + this.url + " -> " + problem);
+
+                /* Letzte Hoffnung: jemand anders im Spiel hat das Bild noch. */
+                askServer(this.url.toString());
 
                 return;
             }

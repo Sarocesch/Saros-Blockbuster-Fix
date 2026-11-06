@@ -3,6 +3,7 @@ package mchorse.blockbuster.recording.actions;
 import io.netty.buffer.ByteBuf;
 import mchorse.blockbuster.recording.data.Record;
 import mchorse.blockbuster.recording.dynamx.DynamXCompat;
+import mchorse.blockbuster.recording.dynamx.SceneVehicles;
 import mchorse.blockbuster.utils.EntityUtils;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
@@ -158,7 +159,7 @@ public class VehicleMountAction extends MountingAction
     {
         if (world.isRemote) return EntityUtils.entityByUUID(world, this.target);
 
-        Entity vehicle = EntityUtils.entityByUUID(world, this.target);
+        Entity vehicle = SceneVehicles.find(world, this.target, this.hasStartPose, this.startX, this.startZ);
         if (vehicle != null && !vehicle.isDead) return vehicle;
 
         /* Vehicle is missing or dead — try to respawn from snapshot */
@@ -188,14 +189,43 @@ public class VehicleMountAction extends MountingAction
             Entity spawned = EntityList.createEntityFromNBT(tag, world);
             if (spawned == null) return null;
 
+            if (spawned.isDead)
+            {
+                System.out.println("[Blockbuster] Fahrzeug " + this.target + ": DynamX hat den Neuaufbau verworfen (Pack geaendert oder fehlt?)");
+                return null;
+            }
+
             /* Keep the original UUID so subsequent control actions find this entity */
             spawned.setUniqueId(this.target);
             spawned.setPositionAndRotation(this.startX, this.startY, this.startZ, this.startYaw, this.startPitch);
-            world.spawnEntity(spawned);
+            SceneVehicles.stamp(spawned);
+
+            /* Ein Spawn in einen ungeladenen Chunk scheitert still - beim Szenenstart
+             * ist der Start-Chunk oft noch nicht da. */
+            boolean chunkWasMissing = SceneVehicles.ensureChunk(world, this.startX, this.startZ);
+
+            if (!world.spawnEntity(spawned))
+            {
+                Entity holder = world instanceof net.minecraft.world.WorldServer ? ((net.minecraft.world.WorldServer) world).getEntityFromUuid(this.target) : null;
+
+                if (holder != null && !holder.isDead && DynamXCompat.isVehicle(holder))
+                {
+                    return holder;
+                }
+
+                String reason = holder != null ? "UUID noch belegt, altes Fahrzeug wurde in diesem Tick entfernt"
+                    : chunkWasMissing ? "Chunk liess sich nicht laden" : "von einer Mod abgelehnt";
+
+                System.out.println("[Blockbuster] Fahrzeug " + this.target + ": Spawn abgelehnt (" + reason + ")");
+                return null;
+            }
+
+            SceneVehicles.adopt(spawned);
             return spawned;
         }
-        catch (Throwable ignored)
+        catch (Throwable t)
         {
+            System.out.println("[Blockbuster] Fahrzeug " + this.target + ": Neuaufbau fehlgeschlagen: " + t);
             return null;
         }
     }
@@ -319,6 +349,57 @@ public class VehicleMountAction extends MountingAction
         return null;
     }
 
+    /**
+     * Vor dem Loeschen eines Szenen-Fahrzeugs (/scene clear): Abbild sichern, damit das
+     * naechste Abspielen es neu aufbauen kann. Auch in geladene Aufnahmen ohne Snapshot
+     * (im Editor bearbeitet) eintragen - SNAPSHOTS ueberlebt keinen Neustart.
+     *
+     * @return false, wenn kein Abbild zu bekommen war - dann darf das Fahrzeug nicht weg
+     */
+    public static boolean preserveForRebuild(Entity vehicle)
+    {
+        UUID id = vehicle.getUniqueID();
+        NBTTagCompound known = SNAPSHOTS.get(id);
+
+        if (known == null)
+        {
+            known = snapshotOf(vehicle);
+        }
+
+        if (known == null)
+        {
+            return false;
+        }
+
+        SNAPSHOTS.put(id, known);
+
+        for (Record record : mchorse.blockbuster.CommonProxy.manager.records.values())
+        {
+            if (record == null || record.actions == null) continue;
+
+            for (List<Action> tickActions : record.actions)
+            {
+                if (tickActions == null) continue;
+
+                for (Action action : tickActions)
+                {
+                    if (action instanceof VehicleMountAction)
+                    {
+                        VehicleMountAction mount = (VehicleMountAction) action;
+
+                        if (id.equals(mount.target) && mount.isMounting && mount.hasStartPose && mount.vehicleSnapshot == null)
+                        {
+                            mount.vehicleSnapshot = known;
+                            record.dirty = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
     public static void resetVehicles(Record record, World world)
     {
         if (record == null || world == null || world.isRemote) return;
@@ -353,7 +434,7 @@ public class VehicleMountAction extends MountingAction
                     SNAPSHOTS.put(mount.target, mount.vehicleSnapshot);
                 }
 
-                Entity existing = EntityUtils.entityByUUID(world, mount.target);
+                Entity existing = SceneVehicles.find(world, mount.target, true, mount.startX, mount.startZ);
 
                 if (existing == null || existing.isDead)
                 {

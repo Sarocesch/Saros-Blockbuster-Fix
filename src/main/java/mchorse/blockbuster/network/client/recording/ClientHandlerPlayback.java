@@ -40,6 +40,14 @@ public class ClientHandlerPlayback extends ClientMessageHandler<PacketPlayback>
         if (message.state)
         {
             Record record = ClientProxy.manager.getClient(message.filename);
+
+            /* Nur die Aktionen (vom Aktions-Editor) ohne Bilder zaehlt als fehlend -
+             * sonst wurden die Bilder nie angefordert und der Actor stand still. */
+            if (record != null && (record.frames == null || record.frames.isEmpty()))
+            {
+                record = null;
+            }
+
             RecordPlayer recordPlayer = EntityUtils.getRecordPlayer(actor);
 
             if (recordPlayer == null)
