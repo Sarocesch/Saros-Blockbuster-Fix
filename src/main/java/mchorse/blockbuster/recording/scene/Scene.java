@@ -571,6 +571,7 @@ public class Scene
 
         this.playing = true;
         ScenePlaybackChunks.hold(this);
+        SceneAutoResume.started(this);
         this.sendCommand(this.startCommand);
 
         if (firstActor != null)
@@ -625,6 +626,7 @@ public class Scene
 
         this.playing = true;
         ScenePlaybackChunks.hold(this);
+        SceneAutoResume.started(this);
         this.sendCommand(this.startCommand);
 
         this.audioHandler.startAudio(tick);
@@ -698,6 +700,7 @@ public class Scene
         this.audioHandler.pauseAudio(tick);
         this.tick = tick;
         ScenePlaybackChunks.hold(this);
+        SceneAutoResume.started(this);
 
         return true;
     }
@@ -780,6 +783,7 @@ public class Scene
         this.actors.clear();
         this.playing = false;
         ScenePlaybackChunks.release(this.getId());
+        SceneAutoResume.stopped(this.getId());
         this.sendCommand(this.stopCommand);
     }
 

@@ -132,7 +132,9 @@ public class Replay
         if (!actor.world.isRemote)
         {
             actor.setAppearance(this.recorderSkin ? this.recordedAppearance() : null, this.hideOuterLayer);
-            actor.npcSkin = this.npcSkin;
+            /* NPC-Skins kommen jetzt als Textur auf den Morph (Materials), der
+             * alte Modelltausch ist aus. Das Feld bleibt nur fuer alte Dateien. */
+            actor.npcSkin = "";
         }
 
         actor.notifyPlayers();

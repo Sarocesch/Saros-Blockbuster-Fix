@@ -5,7 +5,6 @@ REM Requires DynamX jar on classpath for DynamXCompatHandler.
 
 setlocal enabledelayedexpansion
 set "FORGE_RECOMP=C:\Users\saroc\.gradle\caches\forge_gradle\minecraft_user_repo\net\minecraftforge\forge\1.12.2-14.23.5.2859_mapped_snapshot_20171003-1.12\forge-1.12.2-14.23.5.2859_mapped_snapshot_20171003-1.12-recomp.jar"
-set "BB_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods\blockbuster-2.7-1.12.2-dynamxfix.jar"
 set "LWJGL_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\org\lwjgl\lwjgl\lwjgl\2.9.4-nightly-20150209\lwjgl-2.9.4-nightly-20150209.jar"
 set "SPECIAL_SOURCE=C:\Users\saroc\.gradle\caches\forge_gradle\maven_downloader\net\md-5\SpecialSource\1.8.3\SpecialSource-1.8.3-shaded.jar"
 set "MCP_SRG=C:\Users\saroc\.gradle\caches\minecraft\de\oceanlabs\mcp\mcp_snapshot\20171003\1.12.2\srgs\mcp-srg.srg"
@@ -13,6 +12,7 @@ set "JAVA=C:\Users\saroc\.jdks\corretto-1.8.0_462\bin"
 set "MODS=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\mods"
 REM Resolve mod jars by pattern - the launcher updates these files and the
 REM version inside the name changes, so never hardcode them
+for /f "delims=" %%F in ('dir /b /o-d "%MODS%\blockbuster-*.jar" 2^>nul') do if not defined BB_JAR set "BB_JAR=%MODS%\%%F"
 for /f "delims=" %%F in ('dir /b /o-d "%MODS%\mclib-*.jar" 2^>nul') do if not defined MCLIB_JAR set "MCLIB_JAR=%MODS%\%%F"
 for /f "delims=" %%F in ('dir /b /o-d "%MODS%\DynamX-*-all.jar" 2^>nul') do if not defined DYNAMX_JAR set "DYNAMX_JAR=%MODS%\%%F"
 for /f "delims=" %%F in ('dir /b /o-d "%MODS%\modularwarfare-*.jar" 2^>nul') do if not defined MWF_JAR set "MWF_JAR=%MODS%\%%F"
@@ -142,6 +142,9 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/sc
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/KeyboardHandler.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpPoseBridge.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpCustomPose.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/scene/SceneAutoResume.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/gui/GuiNpcSkinPicker.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/gui/GuiCustomMorph.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/GtwSkins.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMarkerActionPanel.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMwrpPoseActionPanel.java"
@@ -185,7 +188,7 @@ if errorlevel 1 (
 "%JAVA%/jar" uf "%WORK%\blockbuster-final.jar" mchorse
 
 echo === Deploying to mods folder ===
-copy /y "%WORK%\blockbuster-final.jar" "%MODS%\blockbuster-2.7-1.12.2-dynamxfix.jar"
+copy /y "%WORK%\blockbuster-final.jar" "%BB_JAR%"
 copy /y "%WORK%\blockbuster-final.jar" "%ROOT%\blockbuster-2.7-1.12.2-dynamxfix.jar"
 
 echo.

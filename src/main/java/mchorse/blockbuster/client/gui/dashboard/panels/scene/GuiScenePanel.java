@@ -102,8 +102,6 @@ public class GuiScenePanel extends GuiBlockbusterPanel
     public GuiToggleElement hideOuterLayer;
     public GuiToggleElement recorderSkin;
     public GuiTextElement idleRecord;
-    public GuiButtonElement npcSkin;
-    public GuiStringListElement npcSkins;
     public GuiTextElement recordPlayer;
     public GuiTrackpadElement health;
     public GuiTrackpadElement foodLevel;
@@ -240,19 +238,6 @@ public class GuiScenePanel extends GuiBlockbusterPanel
             + "Ohne gespeichertes Aussehen sieht der Actor aus wie bisher. Wirkt beim naechsten Start der Szene."), Direction.RIGHT);
         this.idleRecord = new GuiTextElement(mc, 120, (str) -> this.replay.idleRecord = str).filename();
         this.idleRecord.tooltip(IKey.str("Recording this actor loops after the scene ends. Empty means it just stops."), Direction.RIGHT);
-        this.npcSkins = new GuiStringListElement(mc, (value) ->
-        {
-            String picked = value.get(0);
-
-            this.replay.npcSkin = picked.equals(NO_NPC_SKIN) ? "" : mchorse.blockbuster.client.render.GtwSkins.PREFIX + picked;
-            this.npcSkins.setVisible(false);
-            this.updateNpcSkinLabel();
-        });
-        this.npcSkins.background();
-        this.npcSkins.setVisible(false);
-        this.npcSkin = new GuiButtonElement(mc, IKey.str("NPC-Skin: keiner"), (b) -> this.toggleNpcSkins());
-        this.npcSkin.tooltip(IKey.str("Skin aus GtwNpc (alle NPC-Skins). Zeigt den Actor als Spielermodell mit diesem Skin, "
-            + "dann sind auch MWRP-Posen aus der Aufnahme sichtbar. Geht vor 'Skin des Aufnehmenden'. Wirkt beim naechsten Start der Szene."), Direction.RIGHT);
         this.recordPlayer = new GuiTextElement(mc, 80, (str) -> this.replay.recordPlayer = str.trim());
         this.recordPlayer.tooltip(IKey.str("Spielername, der diesen Actor bei der Gruppenaufnahme aufnimmt. Leer = spielt bei der Gruppenaufnahme einfach mit."), Direction.LEFT);
         this.health = new GuiTrackpadElement(mc, (value) -> this.replay.health = value.floatValue());
@@ -269,7 +254,7 @@ public class GuiScenePanel extends GuiBlockbusterPanel
                  Elements.label(IKey.lang("blockbuster.gui.director.food_level")).color(0xcccccc), this.foodLevel,
                  Elements.label(IKey.lang("blockbuster.gui.director.total_experience")).color(0xcccccc), this.totalExperience,
                  this.invincible, this.invisible, this.enableBurning, this.enabled, this.fake, this.teleportBack, this.renderLast, this.freezeAtEnd, this.hideOuterLayer, this.recorderSkin,
-                 Elements.label(IKey.str("Idle loop")).color(0xcccccc), this.idleRecord, this.npcSkin);
+                 Elements.label(IKey.str("Idle loop")).color(0xcccccc), this.idleRecord);
         this.replays.add(this.selector, this.replayEditor);
 
         /* Toggle view button */
@@ -368,10 +353,6 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         right.add(Elements.label(IKey.lang("blockbuster.gui.director.target")).color(0xcccccc).marginTop(12), this.target, Elements.label(IKey.lang("blockbuster.gui.director.playback_xp_food_level")), this.playbackXPFood);
         right.add(Elements.label(IKey.str("Aufnahme-Spieler")).color(0xcccccc).marginTop(12), this.recordPlayer);
         this.replayEditor.add(this.pickMorph);
-
-        /* Zuletzt, damit die Liste ueber allem liegt. */
-        this.npcSkins.flex().relative(this).x(130).y(20).w(200).hTo(this.selector.flex());
-        this.replayEditor.add(this.npcSkins);
 
         /* Scene manager */
         this.add(this.scenes = new GuiSceneManager(mc, this));
@@ -882,36 +863,6 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         }
     }
 
-    private static final String NO_NPC_SKIN = "(keiner)";
-
-    private void toggleNpcSkins()
-    {
-        if (this.npcSkins.isVisible())
-        {
-            this.npcSkins.setVisible(false);
-
-            return;
-        }
-
-        this.npcSkins.clear();
-        this.npcSkins.add(NO_NPC_SKIN);
-
-        for (String location : mchorse.blockbuster.client.render.GtwSkins.all())
-        {
-            this.npcSkins.add(mchorse.blockbuster.client.render.GtwSkins.shortName(location));
-        }
-
-        this.npcSkins.setCurrentScroll(this.replay.npcSkin.isEmpty() ? NO_NPC_SKIN : mchorse.blockbuster.client.render.GtwSkins.shortName(this.replay.npcSkin));
-        this.npcSkins.setVisible(true);
-    }
-
-    private void updateNpcSkinLabel()
-    {
-        String skin = this.replay == null || this.replay.npcSkin.isEmpty() ? "keiner" : mchorse.blockbuster.client.render.GtwSkins.shortName(this.replay.npcSkin);
-
-        this.npcSkin.label = IKey.str("NPC-Skin: " + skin);
-    }
-
     private void setReplay(Replay replay)
     {
         if (this.replay != null)
@@ -975,8 +926,6 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         this.hideOuterLayer.toggled(this.replay.hideOuterLayer);
         this.recorderSkin.toggled(this.replay.recorderSkin);
         this.idleRecord.setText(this.replay.idleRecord);
-        this.npcSkins.setVisible(false);
-        this.updateNpcSkinLabel();
         this.recordPlayer.setText(this.replay.recordPlayer);
         this.health.setValue(this.replay.health);
         this.foodLevel.setValue(this.replay.foodLevel);
