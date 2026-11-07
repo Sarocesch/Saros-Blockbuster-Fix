@@ -357,7 +357,8 @@ public final class SceneAutoResume
         return next;
     }
 
-    /* Gemeinsam: alle Actors einer Loop-Szene starten zugleich neu. Standard: einzeln. */
+    /* Gemeinsam: alle Actors einer Loop-Szene starten zugleich neu. Standard: gemeinsam,
+     * gemerkt werden nur Szenen, die auf "einzeln" gestellt sind. */
     private static final Map<String, Integer> TOGETHER = new HashMap<String, Integer>();
     private static boolean togetherLoaded;
 
@@ -369,7 +370,7 @@ public final class SceneAutoResume
             readMap(togetherFile(), TOGETHER);
         }
 
-        return TOGETHER.containsKey(id);
+        return !TOGETHER.containsKey(id);
     }
 
     public static boolean toggleLoopTogether(String id)
@@ -378,11 +379,11 @@ public final class SceneAutoResume
 
         if (next)
         {
-            TOGETHER.put(id, 1);
+            TOGETHER.remove(id);
         }
         else
         {
-            TOGETHER.remove(id);
+            TOGETHER.put(id, 1);
         }
 
         writeMap(togetherFile(), TOGETHER);
@@ -394,7 +395,7 @@ public final class SceneAutoResume
     {
         File scenes = SceneManager.sceneFile("x");
 
-        return scenes == null ? null : new File(scenes.getParentFile().getParentFile(), "loop_gemeinsam.txt");
+        return scenes == null ? null : new File(scenes.getParentFile().getParentFile(), "loop_einzeln.txt");
     }
 
     private static File pauseFile()
