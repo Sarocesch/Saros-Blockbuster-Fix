@@ -215,7 +215,7 @@ public final class SceneAutoResume
                         {
                             LAST_NEAR.put(id, now);
                         }
-                        else if (now - last >= IDLE_TICKS && doorMovingNear(scene))
+                        else if (now - last >= IDLE_TICKS && (doorMovingNear(scene) || clickNear(scene)))
                         {
                             /* Erst pausieren, wenn keine LittleTiles-Tuer mehr in Bewegung ist. */
                             LAST_NEAR.put(id, now - IDLE_TICKS + CHECK_EVERY);
@@ -264,6 +264,49 @@ public final class SceneAutoResume
                 System.out.println("[Blockbuster] Loop-Szene " + id + ": " + t);
             }
         }
+    }
+
+    /** Ein Klick in den letzten oder naechsten 10 s: Tuer koennte noch offen sein. */
+    private static final int CLICK_WINDOW = 200;
+
+    /**
+     * Steckt ein Actor gerade in einer Tuer-Aktion (oeffnen, durchgehen,
+     * schliessen)? Dann nicht pausieren - sonst bleibt die Tuer offen stehen und
+     * der erste Klick der naechsten Runde schliesst sie, statt sie zu oeffnen.
+     */
+    private static boolean clickNear(Scene scene)
+    {
+        for (RecordPlayer actor : scene.actors.values())
+        {
+            if (actor.record == null || actor.record.actions == null)
+            {
+                continue;
+            }
+
+            List<List<mchorse.blockbuster.recording.actions.Action>> actions = actor.record.actions;
+            int from = Math.max(0, actor.tick - CLICK_WINDOW);
+            int to = Math.min(actions.size() - 1, actor.tick + CLICK_WINDOW);
+
+            for (int i = from; i <= to; i++)
+            {
+                List<mchorse.blockbuster.recording.actions.Action> list = actions.get(i);
+
+                if (list == null)
+                {
+                    continue;
+                }
+
+                for (mchorse.blockbuster.recording.actions.Action action : list)
+                {
+                    if (action.getClass() == mchorse.blockbuster.recording.actions.InteractBlockAction.class)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static boolean doorMovingNear(Scene scene)
