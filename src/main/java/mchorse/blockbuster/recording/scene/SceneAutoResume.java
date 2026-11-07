@@ -174,6 +174,8 @@ public final class SceneAutoResume
         BROKEN.clear();
         SCHEDULE.clear();
         scheduleLoaded = false;
+        PAUSE.clear();
+        pauseLoaded = false;
     }
 
     /** Aus dem Oberwelt-Tick: jede Sekunde pruefen, wo Spieler sind. */
@@ -305,6 +307,107 @@ public final class SceneAutoResume
         saveSchedule();
 
         return next;
+    }
+
+    /* Pause zwischen zwei Loop-Runden in Sekunden, pro Szene. Eigene Datei wie die Tageszeit. */
+    private static final int[] PAUSES = {0, 10, 30, 60, 120};
+    private static final Map<String, Integer> PAUSE = new HashMap<String, Integer>();
+    private static boolean pauseLoaded;
+
+    public static int getLoopPause(String id)
+    {
+        if (!pauseLoaded)
+        {
+            pauseLoaded = true;
+            readMap(pauseFile(), PAUSE);
+        }
+
+        Integer value = PAUSE.get(id);
+
+        return value == null ? 0 : value;
+    }
+
+    /** Menue: 0 -> 10 -> 30 -> 60 -> 120 -> 0 Sekunden. */
+    public static int cycleLoopPause(String id)
+    {
+        int current = getLoopPause(id);
+        int next = 0;
+
+        for (int i = 0; i < PAUSES.length; i++)
+        {
+            if (PAUSES[i] == current)
+            {
+                next = PAUSES[(i + 1) % PAUSES.length];
+            }
+        }
+
+        if (next == 0)
+        {
+            PAUSE.remove(id);
+        }
+        else
+        {
+            PAUSE.put(id, next);
+        }
+
+        writeMap(pauseFile(), PAUSE);
+
+        return next;
+    }
+
+    private static File pauseFile()
+    {
+        File scenes = SceneManager.sceneFile("x");
+
+        return scenes == null ? null : new File(scenes.getParentFile().getParentFile(), "loop_pause.txt");
+    }
+
+    private static void readMap(File file, Map<String, Integer> map)
+    {
+        try
+        {
+            if (file != null && file.isFile())
+            {
+                for (String line : Files.readAllLines(file.toPath(), StandardCharsets.UTF_8))
+                {
+                    int split = line.lastIndexOf('=');
+
+                    if (split > 0)
+                    {
+                        map.put(line.substring(0, split).trim(), Integer.parseInt(line.substring(split + 1).trim()));
+                    }
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] " + file + " nicht lesbar: " + t);
+        }
+    }
+
+    private static void writeMap(File file, Map<String, Integer> map)
+    {
+        try
+        {
+            if (file == null)
+            {
+                return;
+            }
+
+            List<String> lines = new ArrayList<String>();
+
+            for (Map.Entry<String, Integer> entry : map.entrySet())
+            {
+                lines.add(entry.getKey() + "=" + entry.getValue());
+            }
+
+            file.getParentFile().mkdirs();
+            Files.write(file.toPath(), lines, StandardCharsets.UTF_8);
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] " + file + " nicht schreibbar: " + t);
+        }
     }
 
     public static boolean isNight(World world)

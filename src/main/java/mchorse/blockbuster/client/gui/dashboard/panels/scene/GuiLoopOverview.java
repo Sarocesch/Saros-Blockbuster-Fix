@@ -130,6 +130,10 @@ public class GuiLoopOverview extends GuiElement
             {
                 this.request(entry.active ? PacketLoopSceneAction.OFF : PacketLoopSceneAction.ON, entry.id);
             }
+            else if (x >= this.buttonX(4) && x < this.buttonX(4) + BUTTON_W)
+            {
+                this.request(PacketLoopSceneAction.PAUSE, entry.id);
+            }
             else if (x >= this.buttonX(3) && x < this.buttonX(3) + BUTTON_W)
             {
                 this.request(PacketLoopSceneAction.SCHEDULE, entry.id);
@@ -223,7 +227,7 @@ public class GuiLoopOverview extends GuiElement
                 color = 0x888888;
             }
 
-            int textW = this.buttonX(3) - this.area.x - 20;
+            int textW = this.buttonX(4) - this.area.x - 20;
 
             this.font.drawStringWithShadow(this.font.trimStringToWidth(name, textW), this.area.x + 10, y + 2, 0xffffff);
             this.font.drawStringWithShadow(this.font.trimStringToWidth(status
@@ -242,6 +246,7 @@ public class GuiLoopOverview extends GuiElement
                 int schedule = Math.max(0, Math.min(2, entry.schedule));
 
                 this.button(this.buttonX(3), y, times[schedule], colors[schedule], context);
+                this.button(this.buttonX(4), y, entry.pause <= 0 ? "0s" : entry.pause + "s", entry.pause <= 0 ? 0xff555555 : 0xff227777, context);
             }
 
             if (entry.hasPos)
@@ -255,7 +260,7 @@ public class GuiLoopOverview extends GuiElement
             this.font.drawStringWithShadow("Keine Szene mit Loops gefunden.", this.area.x + 10, y0 + 4, 0xaaaaaa);
         }
 
-        this.font.drawStringWithShadow("An/Aus = dauerhaft an/beenden. Neu = Actors frisch. Immer/Tag/Nacht = nur zu dieser Tageszeit.",
+        this.font.drawStringWithShadow("An/Aus = dauerhaft an/beenden. Neu = Actors frisch. Immer/Tag/Nacht = Tageszeit. 0s-120s = Pause je Runde.",
             this.area.x + 10, this.area.ey() - 16, 0x888888);
 
         super.draw(context);

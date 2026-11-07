@@ -28,6 +28,8 @@ public class PacketLoopSceneList implements IMessage
         public byte schedule;
         /** Gerade passende Tageszeit fuer die Szene? */
         public boolean timeOk = true;
+        /** Pause zwischen zwei Runden in Sekunden. */
+        public int pause;
         public int alive;
         public int total;
         public boolean hasPos;
@@ -52,6 +54,7 @@ public class PacketLoopSceneList implements IMessage
             entry.broken = buf.readBoolean();
             entry.schedule = buf.readByte();
             entry.timeOk = buf.readBoolean();
+            entry.pause = buf.readInt();
             entry.alive = buf.readInt();
             entry.total = buf.readInt();
             entry.hasPos = buf.readBoolean();
@@ -76,6 +79,7 @@ public class PacketLoopSceneList implements IMessage
             buf.writeBoolean(entry.broken);
             buf.writeByte(entry.schedule);
             buf.writeBoolean(entry.timeOk);
+            buf.writeInt(entry.pause);
             buf.writeInt(entry.alive);
             buf.writeInt(entry.total);
             buf.writeBoolean(entry.hasPos);

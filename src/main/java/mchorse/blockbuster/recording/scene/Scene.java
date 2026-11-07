@@ -378,8 +378,9 @@ public class Scene
             Replay replay = entry.getKey();
             RecordPlayer actor = entry.getValue();
 
-            if (this.loops && actor.isFinished())
+            if (this.loops && actor.isFinished() && this.loopPauseOver(actor))
             {
+                this.loopWaiting.remove(actor);
                 actor.record.reset(actor.actor);
 
                 actor.startPlaying(replay.id, actor.kill);
@@ -405,6 +406,35 @@ public class Scene
      * thing
      * @return false if every actor is finished and the scene can be stopped.
      */
+    /** Welt-Tick, ab dem ein fertiger Actor auf die Loop-Pause wartet. */
+    private final Map<RecordPlayer, Long> loopWaiting = new java.util.HashMap<RecordPlayer, Long>();
+
+    /**
+     * Pause zwischen zwei Runden (Loop-Uebersicht): der Actor bleibt so lange am
+     * Endpunkt stehen. Ohne eingestellte Pause sofort wie bisher.
+     */
+    private boolean loopPauseOver(RecordPlayer actor)
+    {
+        int seconds = SceneAutoResume.getLoopPause(this.getId());
+
+        if (seconds <= 0 || this.getWorld() == null)
+        {
+            return true;
+        }
+
+        long now = this.getWorld().getTotalWorldTime();
+        Long since = this.loopWaiting.get(actor);
+
+        if (since == null)
+        {
+            this.loopWaiting.put(actor, now);
+
+            return false;
+        }
+
+        return now - since >= seconds * 20L;
+    }
+
     /**
      * Zufalls-Pool im Morph (NPC-Zufallspool): bei jedem Loop-Neustart einen
      * anderen Skin aus dem Pool tragen.

@@ -17,6 +17,7 @@ public class PacketLoopSceneAction implements IMessage
     public static final byte TELEPORT = 3;
     public static final byte RESTART = 4;
     public static final byte SCHEDULE = 5;
+    public static final byte PAUSE = 6;
 
     public byte action;
     public String id = "";
