@@ -432,6 +432,78 @@ public class ActionHandler
         }
     }
 
+    private static java.lang.reflect.Field ltController;
+    private static java.lang.reflect.Field ltActivator;
+    private static boolean ltResolved;
+
+    /**
+     * LittleTiles-Tuer per Animation erkennen: mit dem Saro-Fix setzt LittleTiles
+     * die Tuer ohne Spieler (keine Survival-Grenzen, kein AreaGuard), dann kommt
+     * kein MultiPlaceEvent mehr. Der Ausloeser steht aber im DoorController.
+     */
+    @SubscribeEvent
+    public void onLittleTilesAnimation(net.minecraftforge.event.entity.EntityJoinWorldEvent event)
+    {
+        Entity entity = event.getEntity();
+
+        if (event.getWorld().isRemote || !entity.getClass().getName().equals("com.creativemd.littletiles.common.entity.EntityAnimation"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!ltResolved)
+            {
+                ltResolved = true;
+                ltController = entity.getClass().getField("controller");
+                ltActivator = Class.forName("com.creativemd.littletiles.common.entity.DoorController").getField("activator");
+            }
+
+            if (ltController == null || ltActivator == null)
+            {
+                return;
+            }
+
+            Object controller = ltController.get(entity);
+
+            if (controller == null || !ltActivator.getDeclaringClass().isInstance(controller))
+            {
+                return;
+            }
+
+            Object activator = ltActivator.get(controller);
+
+            if (activator instanceof EntityPlayer)
+            {
+                EntityPlayer player = (EntityPlayer) activator;
+                List<Action> events = CommonProxy.manager.getActions(player);
+
+                if (events != null)
+                {
+                    this.addLittleTilesClick(events, new BlockPos(entity));
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            ltController = null;
+        }
+    }
+
+    private void addLittleTilesClick(List<Action> events, BlockPos pos)
+    {
+        for (Action action : events)
+        {
+            if (action.getClass() == InteractBlockAction.class)
+            {
+                return;
+            }
+        }
+
+        events.add(new InteractBlockAction(pos));
+    }
+
     /**
      * LittleTiles oeffnet und schliesst eine Tuer, indem es sie mit dem
      * klickenden Spieler in einer eigenen Animationswelt neu platziert. Der
@@ -446,15 +518,7 @@ public class ActionHandler
             return false;
         }
 
-        for (Action action : events)
-        {
-            if (action.getClass() == InteractBlockAction.class)
-            {
-                return true;
-            }
-        }
-
-        events.add(new InteractBlockAction(pos));
+        this.addLittleTilesClick(events, pos);
 
         return true;
     }
