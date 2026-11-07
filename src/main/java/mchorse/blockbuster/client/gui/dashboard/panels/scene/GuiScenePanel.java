@@ -266,10 +266,29 @@ public class GuiScenePanel extends GuiBlockbusterPanel
         GuiIconElement toggleScenes = new GuiIconElement(mc, Icons.MORE, (b) -> this.scenes.toggleVisible());
         toggleScenes.flex().y(4).relative(this.area).x(1, -24);
 
+        GuiLoopOverview loopOverview = new GuiLoopOverview(mc);
+        GuiIconElement toggleLoops = new GuiIconElement(mc, Icons.SERVER, (b) ->
+        {
+            if (loopOverview.hasParent())
+            {
+                loopOverview.removeFromParent();
+
+                return;
+            }
+
+            this.add(loopOverview);
+            loopOverview.resize();
+            loopOverview.open();
+        });
+
+        loopOverview.flex().relative(this).wh(1F, 1F);
+        toggleLoops.tooltip(IKey.str("Loop-Szenen: Uebersicht, An/Aus, Teleport"), Direction.LEFT);
+        toggleLoops.flex().y(4).relative(this.area).x(1, -64);
+
         toggle.tooltip(IKey.lang("blockbuster.gui.director.config"), Direction.LEFT);
         toggle.flex().y(4).relative(this.area).x(1, -44);
 
-        this.add(toggleScenes);
+        this.add(toggleScenes, toggleLoops);
         this.subChildren.add(toggle);
 
         /* Add, duplicate and remove replay buttons */

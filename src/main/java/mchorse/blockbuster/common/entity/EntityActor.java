@@ -169,7 +169,10 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     {
         super(worldIn);
 
-        this.fakePlayer = new EntityFakePlayer(worldIn, this, new GameProfile(null, "xXx_Fake_Player_420_xXx"));
+        /* Feste UUID: Auf dem Server fragt LittleTiles vor jedem Klick die
+         * OP-Liste (Spawnschutz) ueber die UUID ab - mit null brach das ab und
+         * der Actor konnte keine LittleTiles-Tuer bedienen. */
+        this.fakePlayer = new EntityFakePlayer(worldIn, this, new GameProfile(java.util.UUID.nameUUIDFromBytes("blockbuster:fake_player".getBytes(java.nio.charset.StandardCharsets.UTF_8)), "xXx_Fake_Player_420_xXx"));
         this.fakePlayer.capabilities.isCreativeMode = true;
     }
 

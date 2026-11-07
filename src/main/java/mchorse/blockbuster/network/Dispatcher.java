@@ -255,6 +255,8 @@ public class Dispatcher
              * dessen Paketnummern gleich bleiben. */
             register(mchorse.blockbuster.network.common.PacketActorPose.class, mchorse.blockbuster.network.client.ClientHandlerActorPose.class, Side.CLIENT);
             register(mchorse.blockbuster.network.common.PacketRecordMarker.class, mchorse.blockbuster.network.server.ServerHandlerRecordMarker.class, Side.SERVER);
+            register(mchorse.blockbuster.network.common.PacketLoopSceneAction.class, mchorse.blockbuster.network.server.ServerHandlerLoopSceneAction.class, Side.SERVER);
+            register(mchorse.blockbuster.network.common.PacketLoopSceneList.class, mchorse.blockbuster.network.client.ClientHandlerLoopSceneList.class, Side.CLIENT);
         }
     };
 

@@ -40,6 +40,7 @@ public final class SceneAutoResume
     private static final Set<String> RUNNING = new LinkedHashSet<String>();
     private static final Map<String, Long> LAST_NEAR = new HashMap<String, Long>();
     private static final Map<String, List<double[]>> ANCHORS = new HashMap<String, List<double[]>>();
+    private static final Set<String> BROKEN = new LinkedHashSet<String>();
     private static boolean loaded;
     private static boolean suspending;
 
@@ -52,6 +53,7 @@ public final class SceneAutoResume
         {
             load();
             ANCHORS.remove(scene.getId());
+            BROKEN.remove(scene.getId());
             LAST_NEAR.put(scene.getId(), scene.getWorld().getTotalWorldTime());
 
             if (RUNNING.add(scene.getId()))
@@ -78,6 +80,90 @@ public final class SceneAutoResume
         }
     }
 
+    public static boolean isActive(String id)
+    {
+        load();
+
+        return RUNNING.contains(id);
+    }
+
+    /** Uebersicht "An": dauerhaft an, der Tick startet sie bei Spielern in der Naehe. */
+    public static void activate(Scene scene)
+    {
+        load();
+        ANCHORS.remove(scene.getId());
+
+        if (RUNNING.add(scene.getId()))
+        {
+            save();
+        }
+    }
+
+    /**
+     * Eine Aufnahme startet: jede Loop-Szene mit dieser Aufnahme beenden, sonst
+     * spielt die alte Fassung mit (oder startet, sobald man in der Naehe ist).
+     * Danach in der Loop-Uebersicht wieder anschalten.
+     */
+    public static void endForRecording(String recordId, EntityPlayer player)
+    {
+        if (player.world.isRemote || player.getServer() == null)
+        {
+            return;
+        }
+
+        load();
+
+        World world = player.getServer().getWorld(0);
+        Set<String> ids = new LinkedHashSet<String>(RUNNING);
+
+        for (Map.Entry<String, Scene> entry : CommonProxy.scenes.getScenes().entrySet())
+        {
+            if (entry.getValue().playing && entry.getValue().loops)
+            {
+                ids.add(entry.getKey());
+            }
+        }
+
+        for (String id : ids)
+        {
+            Scene scene = CommonProxy.scenes.get(id, world);
+
+            if (scene == null || scene.getByFile(recordId) == null)
+            {
+                continue;
+            }
+
+            if (scene.playing)
+            {
+                scene.stopPlayback(true, true);
+            }
+
+            stopped(id);
+            player.sendMessage(new net.minecraft.util.text.TextComponentString(net.minecraft.util.text.TextFormatting.YELLOW
+                + "Loop-Szene " + id + " fuer die Aufnahme beendet. Danach in der Loop-Uebersicht wieder anschalten."));
+        }
+    }
+
+    /** Uebersicht "Neu": Actors weg, bleibt an - der Tick startet sie gleich wieder frisch. */
+    public static void restart(Scene scene)
+    {
+        if (scene.playing)
+        {
+            suspending = true;
+
+            try
+            {
+                scene.stopPlayback(true, true);
+            }
+            finally
+            {
+                suspending = false;
+            }
+        }
+
+        activate(scene);
+    }
+
     /** Server neu gestartet oder Welt neu geladen: Liste frisch von der Platte. */
     public static void reset()
     {
@@ -85,6 +171,7 @@ public final class SceneAutoResume
         RUNNING.clear();
         LAST_NEAR.clear();
         ANCHORS.clear();
+        BROKEN.clear();
     }
 
     /** Aus dem Oberwelt-Tick: jede Sekunde pruefen, wo Spieler sind. */
@@ -147,6 +234,20 @@ public final class SceneAutoResume
                 }
                 else if (playerNear(scene.getWorld(), anchors, null, START))
                 {
+                    if (anchors.size() < enabledReplays(scene))
+                    {
+                        /* Eine Aufnahme fehlt (geloescht?): nicht jede Sekunde neu scheitern. */
+                        ANCHORS.remove(id);
+
+                        if (BROKEN.add(id))
+                        {
+                            System.out.println("[Blockbuster] Loop-Szene " + id + " startet nicht, eine Aufnahme fehlt.");
+                        }
+
+                        continue;
+                    }
+
+                    BROKEN.remove(id);
                     loadStartChunks(scene.getWorld(), anchors);
                     scene.startPlayback(0);
                     LAST_NEAR.put(id, now);
@@ -194,8 +295,23 @@ public final class SceneAutoResume
         return false;
     }
 
-    /** Erstes Bild jeder Aufnahme der Szene. */
-    private static List<double[]> anchors(Scene scene)
+    public static int enabledReplays(Scene scene)
+    {
+        int count = 0;
+
+        for (Replay replay : scene.replays)
+        {
+            if (replay.enabled)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /** Erstes Bild jeder Aufnahme der Szene: x, z, y. */
+    public static List<double[]> anchors(Scene scene)
     {
         List<double[]> anchors = ANCHORS.get(scene.getId());
 
@@ -221,7 +337,7 @@ public final class SceneAutoResume
                 {
                     Frame frame = record.frames.get(0);
 
-                    anchors.add(new double[] {frame.x, frame.z});
+                    anchors.add(new double[] {frame.x, frame.z, frame.y});
                 }
             }
             catch (Throwable t)

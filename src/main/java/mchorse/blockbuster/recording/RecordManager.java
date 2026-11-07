@@ -138,6 +138,7 @@ public class RecordManager
         }
         else
         {
+            mchorse.blockbuster.recording.scene.SceneAutoResume.endForRecording(filename, player);
             this.setupPlayerData(recorder, player);
             CommonProxy.damage.addDamageControl(recorder, player);
 
