@@ -80,6 +80,85 @@ public class KeyboardHandler
         event.register(mchorse.blockbuster.recording.actions.MwrpPoseAction.class, new mchorse.blockbuster.client.gui.dashboard.panels.recording_editor.actions.GuiMwrpPoseActionPanel(Minecraft.getMinecraft(), event.panel));
     }
 
+    private Class<?> littleTilesAnimation;
+    private boolean littleTilesResolved;
+
+    /**
+     * Klick auf eine laufende LittleTiles-Tuer-Animation (z. B. offene Tuer
+     * schliessen): LittleTiles faengt ihn auf dem Client ab und schickt nur ein
+     * eigenes Paket - der Server sieht keinen Klick. Hier wird er erkannt und
+     * gemeldet, der Server nimmt ihn nur waehrend einer Aufnahme auf.
+     */
+    @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.HIGHEST)
+    public void onLittleTilesClickBlock(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock event)
+    {
+        this.checkLittleTilesAnimationClick(event);
+    }
+
+    @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.HIGHEST)
+    public void onLittleTilesClickEmpty(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickEmpty event)
+    {
+        this.checkLittleTilesAnimationClick(event);
+    }
+
+    @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.HIGHEST)
+    public void onLittleTilesClickItem(net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickItem event)
+    {
+        this.checkLittleTilesAnimationClick(event);
+    }
+
+    private void checkLittleTilesAnimationClick(net.minecraftforge.event.entity.player.PlayerInteractEvent event)
+    {
+        Minecraft mc = Minecraft.getMinecraft();
+
+        if (!event.getWorld().isRemote || event.getEntityPlayer() != mc.player || event.getHand() != net.minecraft.util.EnumHand.MAIN_HAND)
+        {
+            return;
+        }
+
+        if (!this.littleTilesResolved)
+        {
+            this.littleTilesResolved = true;
+
+            try
+            {
+                this.littleTilesAnimation = Class.forName("com.creativemd.littletiles.common.entity.EntityAnimation");
+            }
+            catch (Throwable t)
+            {}
+        }
+
+        if (this.littleTilesAnimation == null)
+        {
+            return;
+        }
+
+        net.minecraft.util.math.Vec3d eyes = mc.player.getPositionEyes(1F);
+        net.minecraft.util.math.Vec3d end = eyes.add(mc.player.getLook(1F).scale(mc.playerController.getBlockReachDistance()));
+        double best = mc.objectMouseOver != null && mc.objectMouseOver.typeOfHit == net.minecraft.util.math.RayTraceResult.Type.BLOCK
+            ? eyes.distanceTo(mc.objectMouseOver.hitVec) : Double.MAX_VALUE;
+        net.minecraft.util.math.Vec3d hit = null;
+
+        for (net.minecraft.entity.Entity entity : mc.world.getEntitiesWithinAABB(net.minecraft.entity.Entity.class,
+            new net.minecraft.util.math.AxisAlignedBB(eyes.x, eyes.y, eyes.z, end.x, end.y, end.z).grow(1), (e) -> this.littleTilesAnimation.isInstance(e)))
+        {
+            net.minecraft.util.math.RayTraceResult result = entity.getEntityBoundingBox().calculateIntercept(eyes, end);
+
+            if (result != null && eyes.distanceTo(result.hitVec) < best)
+            {
+                best = eyes.distanceTo(result.hitVec);
+                hit = result.hitVec;
+            }
+        }
+
+        if (hit != null)
+        {
+            net.minecraft.util.math.BlockPos pos = new net.minecraft.util.math.BlockPos(hit);
+
+            mchorse.blockbuster.network.Dispatcher.sendToServer(new mchorse.blockbuster.network.common.PacketLittleTilesClick(pos.getX(), pos.getY(), pos.getZ()));
+        }
+    }
+
     /** Eigener Reiter "Loop-Szenen" in der linken Leiste, nach den Blockbuster-Reitern. */
     @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.LOW)
     public void onDashboardPanels(mchorse.mclib.events.RegisterDashboardPanels event)

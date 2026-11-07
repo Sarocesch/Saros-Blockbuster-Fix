@@ -53,6 +53,14 @@ public class WorldEventListener implements IWorldEventListener
             {
                 return;
             }
+
+            /* LittleTiles-Tueren nie zuruecksetzen: beim Szenenende lagen sie oft
+             * gerade offen oder in Bewegung, das Zurueckschreiben der alten
+             * Kacheln machte die Tuer doppelt bzw. kaputt. */
+            if (isLittleTiles(oldState) || isLittleTiles(newState))
+            {
+                return;
+            }
             else if (oldState.getBlock() == Blocks.PISTON_EXTENSION)
             {
                 oldState = Blocks.AIR.getDefaultState();
@@ -60,6 +68,13 @@ public class WorldEventListener implements IWorldEventListener
 
             CommonProxy.damage.addBlock(pos, oldState, worldIn);
         }
+    }
+
+    private static boolean isLittleTiles(IBlockState state)
+    {
+        net.minecraft.util.ResourceLocation id = state.getBlock().getRegistryName();
+
+        return id != null && "littletiles".equals(id.getResourceDomain());
     }
 
     @Override

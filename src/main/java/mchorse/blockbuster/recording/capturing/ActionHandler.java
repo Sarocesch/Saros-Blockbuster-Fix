@@ -481,7 +481,7 @@ public class ActionHandler
 
                 if (events != null)
                 {
-                    this.addLittleTilesClick(events, new BlockPos(entity));
+                    addLittleTilesClick(events, new BlockPos(entity));
                 }
             }
         }
@@ -491,7 +491,7 @@ public class ActionHandler
         }
     }
 
-    private void addLittleTilesClick(List<Action> events, BlockPos pos)
+    public static void addLittleTilesClick(List<Action> events, BlockPos pos)
     {
         for (Action action : events)
         {
@@ -518,7 +518,7 @@ public class ActionHandler
             return false;
         }
 
-        this.addLittleTilesClick(events, pos);
+        addLittleTilesClick(events, pos);
 
         return true;
     }

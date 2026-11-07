@@ -23,7 +23,7 @@ echo === MWF:       %MWF_JAR%
 echo === Metamorph: %METAMORPH_JAR%
 rem Mod-Version: bei JEDEM Release hochzaehlen, gleich wie der Dateiname (-YYYYMMDD.N).
 rem Forge laesst Client und Server mit unterschiedlicher Version dann nicht zusammen.
-set "BB_VERSION=2.7-20261107.7"
+set "BB_VERSION=2.7-20261107.8"
 set "ROOT=t:\MyModsCode\Saros Blockbuster Fix"
 set "ROOTFWD=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
@@ -156,6 +156,9 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/server/ServerHandlerLo
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/ClientHandlerLoopSceneList.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiLoopOverview.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiLoopScenesPanel.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/common/PacketLittleTilesClick.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/server/ServerHandlerLittleTilesClick.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/capturing/WorldEventListener.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/GtwSkins.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMarkerActionPanel.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMwrpPoseActionPanel.java"

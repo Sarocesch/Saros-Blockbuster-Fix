@@ -80,17 +80,24 @@ public class InteractBlockAction extends Action
             this.copyActor(actor, player, frame);
         }
 
-        if (!LTHelper.playerRightClickServer(player, frame))
+        /* LittleTiles nur fuer LittleTiles-Bloecke und Luft (offene Tuer, die
+         * gerade als Animation unterwegs ist). Alles andere - Vanilla-Tueren,
+         * Hebel, Knoepfe - laeuft wie immer: auf dem Server ist der
+         * LittleTiles-Weg frueher ohnehin jedes Mal abgestuerzt, alte
+         * Aufnahmen bekommen so exakt das bisherige Verhalten. */
+        boolean littleTiles = BLACKLIST.contains(state.getBlock().getRegistryName());
+
+        if (littleTiles || state.getBlock().isAir(state, actor.world, this.pos))
         {
-            if (BLACKLIST.contains(state.getBlock().getRegistryName()))
+            if (!LTHelper.playerRightClickServer(player, frame) && littleTiles)
             {
                 LTHelper.playerRightClickAt(player, frame, this.pos);
-
-                return;
             }
 
-            state.getBlock().onBlockActivated(actor.world, this.pos, state, player, EnumHand.MAIN_HAND, null, this.pos.getX(), this.pos.getY(), this.pos.getZ());
+            return;
         }
+
+        state.getBlock().onBlockActivated(actor.world, this.pos, state, player, EnumHand.MAIN_HAND, null, this.pos.getX(), this.pos.getY(), this.pos.getZ());
     }
 
     @Override
