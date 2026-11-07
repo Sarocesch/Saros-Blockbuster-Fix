@@ -176,6 +176,8 @@ public final class SceneAutoResume
         scheduleLoaded = false;
         PAUSE.clear();
         pauseLoaded = false;
+        TOGETHER.clear();
+        togetherLoaded = false;
     }
 
     /** Aus dem Oberwelt-Tick: jede Sekunde pruefen, wo Spieler sind. */
@@ -353,6 +355,46 @@ public final class SceneAutoResume
         writeMap(pauseFile(), PAUSE);
 
         return next;
+    }
+
+    /* Gemeinsam: alle Actors einer Loop-Szene starten zugleich neu. Standard: einzeln. */
+    private static final Map<String, Integer> TOGETHER = new HashMap<String, Integer>();
+    private static boolean togetherLoaded;
+
+    public static boolean isLoopTogether(String id)
+    {
+        if (!togetherLoaded)
+        {
+            togetherLoaded = true;
+            readMap(togetherFile(), TOGETHER);
+        }
+
+        return TOGETHER.containsKey(id);
+    }
+
+    public static boolean toggleLoopTogether(String id)
+    {
+        boolean next = !isLoopTogether(id);
+
+        if (next)
+        {
+            TOGETHER.put(id, 1);
+        }
+        else
+        {
+            TOGETHER.remove(id);
+        }
+
+        writeMap(togetherFile(), TOGETHER);
+
+        return next;
+    }
+
+    private static File togetherFile()
+    {
+        File scenes = SceneManager.sceneFile("x");
+
+        return scenes == null ? null : new File(scenes.getParentFile().getParentFile(), "loop_gemeinsam.txt");
     }
 
     private static File pauseFile()

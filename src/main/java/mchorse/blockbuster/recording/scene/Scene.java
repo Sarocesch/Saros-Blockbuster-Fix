@@ -373,12 +373,31 @@ public class Scene
     {
         int count = 0;
 
+        /* Gemeinsam (Loop-Uebersicht): erst wenn alle fertig sind, alle zugleich neu. */
+        boolean together = this.loops && SceneAutoResume.isLoopTogether(this.getId());
+        boolean restartAll = false;
+
+        if (together)
+        {
+            boolean allDone = true;
+
+            for (RecordPlayer actor : this.actors.values())
+            {
+                if (!actor.isFinished() && !actor.actor.isDead)
+                {
+                    allDone = false;
+                }
+            }
+
+            restartAll = allDone && this.loopPauseOver(null);
+        }
+
         for (Map.Entry<Replay, RecordPlayer> entry : this.actors.entrySet())
         {
             Replay replay = entry.getKey();
             RecordPlayer actor = entry.getValue();
 
-            if (this.loops && actor.isFinished() && this.loopPauseOver(actor))
+            if (this.loops && actor.isFinished() && (together ? restartAll : this.loopPauseOver(actor)))
             {
                 this.loopWaiting.remove(actor);
                 actor.record.reset(actor.actor);
@@ -396,6 +415,11 @@ public class Scene
             }
         }
 
+        if (restartAll)
+        {
+            this.loopWaiting.remove(null);
+        }
+
         return count == this.actorsCount;
     }
 
@@ -406,7 +430,7 @@ public class Scene
      * thing
      * @return false if every actor is finished and the scene can be stopped.
      */
-    /** Welt-Tick, ab dem ein fertiger Actor auf die Loop-Pause wartet. */
+    /** Welt-Tick, ab dem ein fertiger Actor (bei "Gemeinsam": null = ganze Szene) auf die Loop-Pause wartet. */
     private final Map<RecordPlayer, Long> loopWaiting = new java.util.HashMap<RecordPlayer, Long>();
 
     /**

@@ -30,6 +30,8 @@ public class PacketLoopSceneList implements IMessage
         public boolean timeOk = true;
         /** Pause zwischen zwei Runden in Sekunden. */
         public int pause;
+        /** Alle Actors zugleich neu starten. */
+        public boolean together;
         public int alive;
         public int total;
         public boolean hasPos;
@@ -55,6 +57,7 @@ public class PacketLoopSceneList implements IMessage
             entry.schedule = buf.readByte();
             entry.timeOk = buf.readBoolean();
             entry.pause = buf.readInt();
+            entry.together = buf.readBoolean();
             entry.alive = buf.readInt();
             entry.total = buf.readInt();
             entry.hasPos = buf.readBoolean();
@@ -80,6 +83,7 @@ public class PacketLoopSceneList implements IMessage
             buf.writeByte(entry.schedule);
             buf.writeBoolean(entry.timeOk);
             buf.writeInt(entry.pause);
+            buf.writeBoolean(entry.together);
             buf.writeInt(entry.alive);
             buf.writeInt(entry.total);
             buf.writeBoolean(entry.hasPos);

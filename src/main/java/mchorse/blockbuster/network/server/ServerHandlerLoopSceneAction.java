@@ -56,6 +56,10 @@ public class ServerHandlerLoopSceneAction extends ServerMessageHandler<PacketLoo
 
             SceneAutoResume.stopped(scene.getId());
         }
+        else if (action == PacketLoopSceneAction.TOGETHER)
+        {
+            SceneAutoResume.toggleLoopTogether(scene.getId());
+        }
         else if (action == PacketLoopSceneAction.PAUSE)
         {
             SceneAutoResume.cycleLoopPause(scene.getId());
@@ -119,6 +123,7 @@ public class ServerHandlerLoopSceneAction extends ServerMessageHandler<PacketLoo
                 entry.schedule = (byte) SceneAutoResume.getSchedule(id);
                 entry.timeOk = SceneAutoResume.scheduleAllows(id, world);
                 entry.pause = SceneAutoResume.getLoopPause(id);
+                entry.together = SceneAutoResume.isLoopTogether(id);
 
                 if (scene.playing)
                 {
