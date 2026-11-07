@@ -152,6 +152,38 @@ public class LTHelper
         return Boolean.TRUE.equals(activateServer.invoke(action, player));
     }
 
+    /**
+     * Blickpunkt auf einer LittleTiles-Tuer-Animation in Reichweite, oder null.
+     * Nur wenn kein Block naeher davor liegt.
+     */
+    public static BlockPos animationHit(EntityPlayer player)
+    {
+        if (!resolve())
+        {
+            return null;
+        }
+
+        Vec3d from = new Vec3d(player.posX, player.posY + player.getEyeHeight(), player.posZ);
+        Vec3d to = from.add(Vec3d.fromPitchYaw(player.rotationPitch, player.rotationYaw).scale(5));
+        RayTraceResult block = player.world.rayTraceBlocks(from, to);
+        double best = block != null && block.hitVec != null ? from.distanceTo(block.hitVec) : Double.MAX_VALUE;
+        Vec3d hit = null;
+        AxisAlignedBB box = new AxisAlignedBB(from.x, from.y, from.z, to.x, to.y, to.z).grow(1);
+
+        for (Entity entity : player.world.getEntitiesWithinAABB(Entity.class, box, (e) -> animationClass.isInstance(e)))
+        {
+            RayTraceResult result = entity.getEntityBoundingBox().calculateIntercept(from, to);
+
+            if (result != null && from.distanceTo(result.hitVec) < best)
+            {
+                best = from.distanceTo(result.hitVec);
+                hit = result.hitVec;
+            }
+        }
+
+        return hit == null ? null : new BlockPos(hit);
+    }
+
     private static boolean resolve()
     {
         if (resolved)

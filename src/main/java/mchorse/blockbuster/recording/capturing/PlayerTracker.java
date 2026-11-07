@@ -165,11 +165,50 @@ public class PlayerTracker
         if (player.isSwingInProgress && player.swingProgress == 0 && !player.isPlayerSleeping())
         {
             this.recorder.actions.add(new SwipeAction());
+            this.trackLittleTilesSwing(player);
 
             if (Blockbuster.recordAttackOnSwipe.get())
             {
                 this.recorder.actions.add(new AttackAction());
             }
+        }
+    }
+
+    /** Welt-Tick des letzten aufgenommenen Block-Klicks. */
+    private long lastClick = -100;
+
+    /**
+     * Rechtsklick auf eine offene LittleTiles-Tuer (Animation): LittleTiles
+     * faengt ihn so frueh ab, dass weder Server noch Client ein Klick-Ereignis
+     * sehen - uebrig bleibt nur der Armschwung. Trifft der Blick dabei eine
+     * Tuer-Animation, wird daraus der Tuer-Klick. Kurz nach einem anderen
+     * Klick nicht, sonst schloesse der Schwung die gerade geoeffnete Tuer.
+     */
+    private void trackLittleTilesSwing(EntityPlayer player)
+    {
+        long now = player.world.getTotalWorldTime();
+
+        for (mchorse.blockbuster.recording.actions.Action action : this.recorder.actions)
+        {
+            if (action.getClass() == mchorse.blockbuster.recording.actions.InteractBlockAction.class)
+            {
+                this.lastClick = now;
+
+                return;
+            }
+        }
+
+        if (now - this.lastClick < 10)
+        {
+            return;
+        }
+
+        net.minecraft.util.math.BlockPos pos = mchorse.blockbuster.recording.LTHelper.animationHit(player);
+
+        if (pos != null)
+        {
+            this.lastClick = now;
+            ActionHandler.addLittleTilesClick(this.recorder.actions, pos);
         }
     }
 
