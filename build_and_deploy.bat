@@ -141,6 +141,7 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/sc
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiReplaySelector.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/KeyboardHandler.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpPoseBridge.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpCustomPose.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/GtwSkins.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMarkerActionPanel.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMwrpPoseActionPanel.java"

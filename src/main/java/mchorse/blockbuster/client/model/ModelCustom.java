@@ -516,6 +516,7 @@ public class ModelCustom extends ModelBiped
 
         mchorse.blockbuster.recording.mwf.MWFCompat.applyMovementAngles(this, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scaleFactor, entityIn);
         mchorse.blockbuster.recording.dynamx.DynamXCompat.applyDrivingArms(this, entityIn);
+        mchorse.blockbuster.client.render.MwrpCustomPose.apply(entityIn, limbs, bones);
 
         for (int i = 0; i < bones.length; i++)
         {
