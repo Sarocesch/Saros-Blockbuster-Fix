@@ -384,6 +384,7 @@ public class Scene
 
                 actor.startPlaying(replay.id, actor.kill);
                 actor.record.applyAction(0, actor.actor);
+                randomizeSkin(actor.actor);
 
                 CommonProxy.manager.players.put(actor.actor, actor);
             }
@@ -404,6 +405,49 @@ public class Scene
      * thing
      * @return false if every actor is finished and the scene can be stopped.
      */
+    /**
+     * Zufalls-Pool im Morph (NPC-Zufallspool): bei jedem Loop-Neustart einen
+     * anderen Skin aus dem Pool tragen.
+     */
+    private static void randomizeSkin(EntityLivingBase entity)
+    {
+        if (!(entity instanceof EntityActor))
+        {
+            return;
+        }
+
+        EntityActor actor = (EntityActor) entity;
+        mchorse.metamorph.api.morphs.AbstractMorph morph = actor.morph.get();
+
+        if (!(morph instanceof mchorse.blockbuster_pack.morphs.CustomMorph))
+        {
+            return;
+        }
+
+        java.util.List<String> pool = ((mchorse.blockbuster_pack.morphs.CustomMorph) morph).skinPool;
+
+        if (pool.isEmpty())
+        {
+            return;
+        }
+
+        mchorse.blockbuster_pack.morphs.CustomMorph custom = (mchorse.blockbuster_pack.morphs.CustomMorph) mchorse.metamorph.api.MorphUtils.copy(morph);
+        String current = custom.skin == null ? "" : custom.skin.toString();
+        String pick = pool.get(actor.world.rand.nextInt(pool.size()));
+
+        if (pool.size() > 1)
+        {
+            for (int i = 0; i < 5 && pick.equals(current); i++)
+            {
+                pick = pool.get(actor.world.rand.nextInt(pool.size()));
+            }
+        }
+
+        custom.skin = new net.minecraft.util.ResourceLocation(pick);
+        actor.morph(custom, false);
+        actor.notifyPlayers();
+    }
+
     public boolean checkActors()
     {
         /*

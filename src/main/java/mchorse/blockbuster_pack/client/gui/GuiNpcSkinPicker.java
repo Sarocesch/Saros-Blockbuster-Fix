@@ -28,6 +28,8 @@ public class GuiNpcSkinPicker extends GuiElement
     private static final int TOP = 30;
 
     public Consumer<ResourceLocation> callback;
+    /** Zufalls-Pool statt Einzelwahl: ein Klick nimmt einen Skin auf oder heraus. */
+    public List<String> pool;
     public GuiButtonElement close;
 
     private final List<ResourceLocation> skins = new ArrayList<ResourceLocation>();
@@ -112,11 +114,23 @@ public class GuiNpcSkinPicker extends GuiElement
 
         if (index >= 0 && context.mouseButton == 0)
         {
-            this.current = this.skins.get(index);
-
-            if (this.callback != null)
+            if (this.pool != null)
             {
-                this.callback.accept(this.current);
+                String id = this.skins.get(index).toString();
+
+                if (!this.pool.remove(id))
+                {
+                    this.pool.add(id);
+                }
+            }
+            else
+            {
+                this.current = this.skins.get(index);
+
+                if (this.callback != null)
+                {
+                    this.callback.accept(this.current);
+                }
             }
         }
 
@@ -141,7 +155,9 @@ public class GuiNpcSkinPicker extends GuiElement
     {
         Gui.drawRect(this.area.x, this.area.y, this.area.ex(), this.area.ey(), 0xee000000);
 
-        String title = this.skins.isEmpty() ? "Keine GtwNpc-Skins gefunden" : "NPC-Skin waehlen (" + this.skins.size() + ")";
+        String title = this.skins.isEmpty() ? "Keine GtwNpc-Skins gefunden"
+            : this.pool != null ? "Zufalls-Pool: " + this.pool.size() + " gewaehlt - bei jedem Loop-Neustart einer davon"
+            : "NPC-Skin waehlen (" + this.skins.size() + ")";
 
         this.font.drawStringWithShadow(title, this.area.x + 10, this.area.y + 11, 0xffffff);
 
@@ -160,7 +176,11 @@ public class GuiNpcSkinPicker extends GuiElement
 
             ResourceLocation skin = this.skins.get(i);
 
-            if (skin.equals(this.current))
+            if (this.pool != null && this.pool.contains(skin.toString()))
+            {
+                Gui.drawRect(x, y, x + CELL_W - 4, y + CELL_H - 4, 0xff22aa44);
+            }
+            else if (this.pool == null && skin.equals(this.current))
             {
                 Gui.drawRect(x, y, x + CELL_W - 4, y + CELL_H - 4, 0xff0088ff);
             }

@@ -517,6 +517,7 @@ public class ModelCustom extends ModelBiped
         mchorse.blockbuster.recording.mwf.MWFCompat.applyMovementAngles(this, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scaleFactor, entityIn);
         mchorse.blockbuster.recording.dynamx.DynamXCompat.applyDrivingArms(this, entityIn);
         mchorse.blockbuster.client.render.MwrpCustomPose.apply(entityIn, limbs, bones);
+        applyFlashlightArm(entityIn, bones);
 
         for (int i = 0; i < bones.length; i++)
         {
@@ -526,6 +527,30 @@ public class ModelCustom extends ModelBiped
             limbs[i].rotateAngleY = bones[i].rotateAngleY;
             limbs[i].rotateAngleZ = bones[i].rotateAngleZ;
         }
+    }
+
+    /**
+     * Taschenlampe vom Light Addon an (NBT "On"): rechter Arm zielt nach vorn,
+     * wie FlashlightHandAnimClientHandler beim Spielermodell (-1.5 + Kopfneigung).
+     */
+    private static void applyFlashlightArm(Entity entityIn, ModelRenderer[] bones)
+    {
+        if (!(entityIn instanceof EntityLivingBase))
+        {
+            return;
+        }
+
+        net.minecraft.item.ItemStack stack = ((EntityLivingBase) entityIn).getHeldItemMainhand();
+
+        if (stack.isEmpty() || !stack.hasTagCompound() || !stack.getTagCompound().getBoolean("On")
+            || !stack.getItem().getClass().getName().equals("de.sarocesch.lightaddon.common.item.ItemFlashlight"))
+        {
+            return;
+        }
+
+        bones[3].rotateAngleX = -1.5F + bones[0].rotateAngleX;
+        bones[3].rotateAngleY = bones[0].rotateAngleY;
+        bones[3].rotateAngleZ = 0.0F;
     }
 
     /**

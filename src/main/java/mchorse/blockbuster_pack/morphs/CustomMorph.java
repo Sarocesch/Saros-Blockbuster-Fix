@@ -93,6 +93,9 @@ public class CustomMorph extends AbstractMorph implements IBodyPartProvider, IAn
      */
     public ResourceLocation skin;
 
+    /** Saro-Fix: Pool von NPC-Skins, bei jedem Loop-Neustart einer davon zufaellig. Leer = aus. */
+    public java.util.List<String> skinPool = new java.util.ArrayList<String>();
+
     /**
      * Custom pose 
      */
@@ -677,6 +680,7 @@ public class CustomMorph extends AbstractMorph implements IBodyPartProvider, IAn
 
             result = result && Objects.equal(this.currentPose, morph.currentPose);
             result = result && Objects.equal(this.skin, morph.skin);
+            result = result && this.skinPool.equals(morph.skinPool);
             result = result && Objects.equal(this.customPose, morph.customPose);
             result = result && this.currentPoseOnSneak == morph.currentPoseOnSneak;
             result = result && this.scale == morph.scale;
@@ -838,6 +842,7 @@ public class CustomMorph extends AbstractMorph implements IBodyPartProvider, IAn
             CustomMorph morph = (CustomMorph) from;
 
             this.skin = RLUtils.clone(morph.skin);
+            this.skinPool = new java.util.ArrayList<String>(morph.skinPool);
 
             this.currentPose = morph.currentPose;
             this.currentPoseOnSneak = morph.currentPoseOnSneak;
@@ -874,6 +879,18 @@ public class CustomMorph extends AbstractMorph implements IBodyPartProvider, IAn
         if (this.skin != null)
         {
             tag.setTag("Skin", RLUtils.writeNbt(this.skin));
+        }
+
+        if (!this.skinPool.isEmpty())
+        {
+            net.minecraft.nbt.NBTTagList pool = new net.minecraft.nbt.NBTTagList();
+
+            for (String entry : this.skinPool)
+            {
+                pool.appendTag(new net.minecraft.nbt.NBTTagString(entry));
+            }
+
+            tag.setTag("SkinPool", pool);
         }
 
         if (!this.currentPose.isEmpty()) tag.setString("Pose", this.currentPose);
@@ -932,6 +949,18 @@ public class CustomMorph extends AbstractMorph implements IBodyPartProvider, IAn
         if (tag.hasKey("Skin"))
         {
             this.skin = RLUtils.create(tag.getTag("Skin"));
+        }
+
+        this.skinPool.clear();
+
+        if (tag.hasKey("SkinPool", NBT.TAG_LIST))
+        {
+            net.minecraft.nbt.NBTTagList pool = tag.getTagList("SkinPool", NBT.TAG_STRING);
+
+            for (int i = 0; i < pool.tagCount(); i++)
+            {
+                this.skinPool.add(pool.getStringTagAt(i));
+            }
         }
 
         this.currentPose = tag.getString("Pose");

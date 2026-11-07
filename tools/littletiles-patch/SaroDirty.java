@@ -15,6 +15,31 @@ public final class SaroDirty
     private SaroDirty()
     {}
 
+    /**
+     * EntityAnimation.readEntityFromNBT: nach dem Setzen der Kachel-Bloecke in die
+     * Fake-Welt fehlte manchmal die TileEntity -> Client-Absturz (te == null).
+     * Hier wird sie notfalls angelegt.
+     */
+    public static net.minecraft.tileentity.TileEntity getOrCreateTe(net.minecraft.world.World world, net.minecraft.util.math.BlockPos pos)
+    {
+        net.minecraft.tileentity.TileEntity te = world.getTileEntity(pos);
+
+        if (te == null)
+        {
+            te = new TileEntityLittleTiles();
+            world.setTileEntity(pos, te);
+
+            net.minecraft.tileentity.TileEntity placed = world.getTileEntity(pos);
+
+            if (placed != null)
+            {
+                te = placed;
+            }
+        }
+
+        return te;
+    }
+
     public static void mark(LittleStructure structure)
     {
         try

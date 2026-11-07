@@ -23,7 +23,7 @@ echo === MWF:       %MWF_JAR%
 echo === Metamorph: %METAMORPH_JAR%
 rem Mod-Version: bei JEDEM Release hochzaehlen, gleich wie der Dateiname (-YYYYMMDD.N).
 rem Forge laesst Client und Server mit unterschiedlicher Version dann nicht zusammen.
-set "BB_VERSION=2.7-20261107.14"
+set "BB_VERSION=2.7-20261107.15"
 set "ROOT=t:\MyModsCode\Saros Blockbuster Fix"
 set "ROOTFWD=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
@@ -36,7 +36,8 @@ REM Bewusst eine eigene Kopie: der Gradle-Cache-Pfad verschwand zwischen zwei Bu
 set "JSR305_JAR=%ROOT%\buildlibs\jsr305-3.0.2.jar"
 set "COMMONSIO_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\commons-io\commons-io\2.5\commons-io-2.5.jar"
 
-set "CP=%FORGE_RECOMP%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%MWF_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%;%GUAVA_JAR%;%NETTY_JAR%;%VECMATH_JAR%;%LOG4J_JAR%;%AUTHLIB_JAR%;%JSR305_JAR%;%COMMONSIO_JAR%"
+set "GSON_JAR=C:\Users\saroc\AppData\Roaming\Minewache-Launcher\Die_Minewache\libraries\com\google\code\gson\gson\2.14.0\gson-2.14.0.jar"
+set "CP=%FORGE_RECOMP%;%GSON_JAR%;%BB_JAR%;%MCLIB_JAR%;%DYNAMX_JAR%;%MWF_JAR%;%METAMORPH_JAR%;%LWJGL_JAR%;%GUAVA_JAR%;%NETTY_JAR%;%VECMATH_JAR%;%LOG4J_JAR%;%AUTHLIB_JAR%;%JSR305_JAR%;%COMMONSIO_JAR%"
 
 echo === Cleaning work dir ===
 if exist "%WORK%" rmdir /s /q "%WORK%"
@@ -148,6 +149,7 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpCustomPose.j
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/scene/SceneAutoResume.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/gui/GuiNpcSkinPicker.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/gui/GuiCustomMorph.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/morphs/CustomMorph.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/LTHelper.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/InteractBlockAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/common/PacketLoopSceneAction.java"

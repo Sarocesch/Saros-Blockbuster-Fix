@@ -144,8 +144,10 @@ public class PlayerTracker
             return 0;
         }
 
+        /* 4: Light-Addon-Taschenlampe (NBT "On"), wird ebenfalls am selben Stack umgeschaltet */
         return (item.getTagCompound().getBoolean("flashlight_enabled") ? 1 : 0)
-            | (item.getTagCompound().getBoolean("laser_enabled") ? 2 : 0);
+            | (item.getTagCompound().getBoolean("laser_enabled") ? 2 : 0)
+            | (item.getTagCompound().getBoolean("On") ? 4 : 0);
     }
 
     /**

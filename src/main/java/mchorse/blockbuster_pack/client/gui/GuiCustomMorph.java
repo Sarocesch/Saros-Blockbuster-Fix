@@ -265,6 +265,7 @@ public class GuiCustomMorph extends GuiAbstractMorph<CustomMorph>
         public GuiTexturePicker picker;
         public GuiToggleElement keying;
         public GuiButtonElement npcSkin;
+        public GuiButtonElement npcPool;
         public GuiNpcSkinPicker npcPicker;
 
         public GuiMaterialsPanel(Minecraft mc, GuiCustomMorph editor)
@@ -298,9 +299,19 @@ public class GuiCustomMorph extends GuiAbstractMorph<CustomMorph>
                 this.add(this.picker);
                 this.picker.resize();
             });
+            this.npcPool = new GuiButtonElement(mc, IKey.str("NPC-Zufallspool"), (b) ->
+            {
+                this.npcPicker.fill(this.morph.skin);
+                this.npcPicker.callback = null;
+                this.npcPicker.pool = this.morph.skinPool;
+                this.add(this.npcPicker);
+                this.npcPicker.resize();
+            });
+            this.npcPool.tooltip(IKey.str("Mehrere NPC-Skins waehlen: bei jedem Loop-Neustart traegt der Actor zufaellig einen davon"), Direction.RIGHT);
             this.npcSkin = new GuiButtonElement(mc, IKey.str("NPC-Skin waehlen"), (b) ->
             {
                 this.npcPicker.fill(this.morph.skin);
+                this.npcPicker.pool = null;
                 this.npcPicker.callback = skin;
                 this.add(this.npcPicker);
                 this.npcPicker.resize();
@@ -315,13 +326,14 @@ public class GuiCustomMorph extends GuiAbstractMorph<CustomMorph>
 
             this.skin.flex().relative(this).set(10, 10, 110, 20);
             this.npcSkin.flex().relative(this.skin).set(0, 25, 110, 20);
-            this.texture.flex().relative(this.npcSkin).set(0, 25, 110, 20);
+            this.npcPool.flex().relative(this.npcSkin).set(0, 25, 110, 20);
+            this.texture.flex().relative(this.npcPool).set(0, 25, 110, 20);
             this.materials.flex().relative(this.texture).set(0, 25, 110, 0).hTo(this.keying.flex(), -5);
             this.keying.flex().relative(this).x(10).w(110).y(1F, -24);
             this.picker.flex().relative(this).wh(1F, 1F);
             this.npcPicker.flex().relative(this).wh(1F, 1F);
 
-            this.add(this.skin, this.npcSkin, this.texture, this.keying, this.materials);
+            this.add(this.skin, this.npcSkin, this.npcPool, this.texture, this.keying, this.materials);
         }
 
         private void setCurrentMaterialRL(ResourceLocation rl)
@@ -359,6 +371,7 @@ public class GuiCustomMorph extends GuiAbstractMorph<CustomMorph>
             this.picker.removeFromParent();
             this.npcPicker.removeFromParent();
             this.npcSkin.setVisible(mchorse.blockbuster.client.render.GtwSkins.available());
+            this.npcPool.setVisible(mchorse.blockbuster.client.render.GtwSkins.available());
 
             boolean noMaterials = this.materials.getList().isEmpty();
 
