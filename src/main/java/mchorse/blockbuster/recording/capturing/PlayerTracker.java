@@ -205,6 +205,12 @@ public class PlayerTracker
 
         net.minecraft.util.math.BlockPos pos = mchorse.blockbuster.recording.LTHelper.animationHit(player);
 
+        if (mchorse.blockbuster.recording.LTHelper.lastChecked > 0)
+        {
+            System.out.println("[Blockbuster] LittleTiles-Schwung von " + player.getName() + ": "
+                + mchorse.blockbuster.recording.LTHelper.lastChecked + " Tuer-Animationen geprueft, Treffer " + pos);
+        }
+
         if (pos != null)
         {
             this.lastClick = now;

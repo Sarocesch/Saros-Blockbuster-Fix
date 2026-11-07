@@ -180,10 +180,19 @@ public class LTHelper
     private static Object[] pointedAnimation(World world, Vec3d from, Vec3d to, double maxDistance) throws Exception
     {
         Object[] best = null;
-        AxisAlignedBB box = new AxisAlignedBB(from.x, from.y, from.z, to.x, to.y, to.z).grow(16);
+        int checked = 0;
 
-        for (Entity entity : world.getEntitiesWithinAABB(Entity.class, box, (e) -> animationClass.isInstance(e)))
+        /* Ueber die geladenen Entities, nicht per Hitbox-Suche: die Hitbox einer
+         * Tuer-Animation liegt nicht dort, wo die Tuer ist. */
+        for (Entity entity : new java.util.ArrayList<Entity>(world.loadedEntityList))
         {
+            if (!animationClass.isInstance(entity) || entity.isDead)
+            {
+                continue;
+            }
+
+            checked++;
+
             Object origin = animationOrigin.get(entity);
             World fake = (World) animationFakeWorld.get(entity);
 
@@ -211,8 +220,13 @@ public class LTHelper
             }
         }
 
+        lastChecked = checked;
+
         return best;
     }
+
+    /** Fuer das Server-Log: wie viele Tuer-Animationen der letzte Strahl geprueft hat. */
+    public static int lastChecked;
 
     private static boolean resolve()
     {
