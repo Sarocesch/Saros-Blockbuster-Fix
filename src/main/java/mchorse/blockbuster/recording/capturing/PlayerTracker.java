@@ -200,7 +200,7 @@ public class PlayerTracker
             }
         }
 
-        if (now - this.lastClick < 10)
+        if (now - this.lastClick < 10 || mchorse.blockbuster.recording.actions.InteractBlockAction.blocksClick(player, player.isSneaking()))
         {
             return;
         }

@@ -256,7 +256,7 @@ public class ActionHandler
 
         if (!player.world.isRemote && events != null)
         {
-            if (isAimingWithGun(player))
+            if (isAimingWithGun(player) || InteractBlockAction.blocksClick(player, player.isSneaking()))
             {
                 return;
             }
@@ -516,6 +516,11 @@ public class ActionHandler
         if (world == null || world == player.world)
         {
             return false;
+        }
+
+        if (InteractBlockAction.blocksClick(player, player.isSneaking()))
+        {
+            return true;
         }
 
         addLittleTilesClick(events, pos);

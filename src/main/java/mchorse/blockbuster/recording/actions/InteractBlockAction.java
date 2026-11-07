@@ -47,6 +47,23 @@ public class InteractBlockAction extends Action
     /** Letzter Klick je Actor: Welt-Tick und Block. */
     private static final java.util.Map<EntityLivingBase, String> LAST_CLICK = new java.util.WeakHashMap<EntityLivingBase, String>();
 
+    /**
+     * Kein Block-Klick: MWF-Waffe in der Hand (Zielen haelt die rechte Taste und
+     * klickte so alle 4 Ticks auf die Tuer) oder Schleichen mit etwas in der Hand
+     * (bei echten Spielern oeffnet das keine Tuer).
+     */
+    public static boolean blocksClick(EntityLivingBase entity, boolean sneaking)
+    {
+        net.minecraft.item.ItemStack main = entity.getHeldItemMainhand();
+
+        if (mchorse.blockbuster.recording.mwf.MWFCompat.getHoldKind(main) != mchorse.blockbuster.recording.mwf.MWFCompat.HOLD_NONE)
+        {
+            return true;
+        }
+
+        return sneaking && (!main.isEmpty() || !entity.getHeldItemOffhand().isEmpty());
+    }
+
     @Override
     public void apply(EntityLivingBase actor)
     {
@@ -74,6 +91,13 @@ public class InteractBlockAction extends Action
         EntityPlayer player = actor instanceof EntityActor ? ((EntityActor) actor).fakePlayer : (EntityPlayer) actor;
 
         if (frame == null) return;
+
+        /* Auch fuer bestehende Aufnahmen: Klicks mit Waffe oder geschlichen mit
+         * etwas in der Hand oeffneten keine Tuer und sollen es hier auch nicht. */
+        if (this.getClass() == InteractBlockAction.class && blocksClick(actor, frame.isSneaking))
+        {
+            return;
+        }
 
         if (player != actor)
         {
