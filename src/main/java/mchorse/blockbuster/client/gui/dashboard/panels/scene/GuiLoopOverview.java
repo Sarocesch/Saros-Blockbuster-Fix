@@ -34,14 +34,26 @@ public class GuiLoopOverview extends GuiElement
 
     public GuiLoopOverview(Minecraft mc)
     {
+        this(mc, true);
+    }
+
+    /** closable = false: fest als eigener Reiter, ohne Schliessen-Knopf. */
+    public GuiLoopOverview(Minecraft mc, boolean closable)
+    {
         super(mc);
 
-        GuiButtonElement close = new GuiButtonElement(mc, IKey.str("Schliessen"), (b) -> this.removeFromParent());
         GuiButtonElement refresh = new GuiButtonElement(mc, IKey.str("Aktualisieren"), (b) -> this.request(PacketLoopSceneAction.LIST, ""));
 
-        close.flex().relative(this).set(0, 6, 80, 20).x(1F, -90);
-        refresh.flex().relative(this).set(0, 6, 80, 20).x(1F, -175);
-        this.add(close, refresh);
+        refresh.flex().relative(this).set(0, 6, 80, 20).x(1F, closable ? -175 : -90);
+        this.add(refresh);
+
+        if (closable)
+        {
+            GuiButtonElement close = new GuiButtonElement(mc, IKey.str("Schliessen"), (b) -> this.removeFromParent());
+
+            close.flex().relative(this).set(0, 6, 80, 20).x(1F, -90);
+            this.add(close);
+        }
     }
 
     public static void receive(List<PacketLoopSceneList.Entry> entries)

@@ -21,6 +21,9 @@ echo === mclib:     %MCLIB_JAR%
 echo === DynamX:    %DYNAMX_JAR%
 echo === MWF:       %MWF_JAR%
 echo === Metamorph: %METAMORPH_JAR%
+rem Mod-Version: bei JEDEM Release hochzaehlen, gleich wie der Dateiname (-YYYYMMDD.N).
+rem Forge laesst Client und Server mit unterschiedlicher Version dann nicht zusammen.
+set "BB_VERSION=2.7-20261107.5"
 set "ROOT=t:\MyModsCode\Saros Blockbuster Fix"
 set "ROOTFWD=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
@@ -152,6 +155,7 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/common/PacketLoopScene
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/server/ServerHandlerLoopSceneAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/ClientHandlerLoopSceneList.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiLoopOverview.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiLoopScenesPanel.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/GtwSkins.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMarkerActionPanel.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMwrpPoseActionPanel.java"
@@ -193,6 +197,11 @@ if errorlevel 1 (
     exit /b 1
 )
 "%JAVA%/jar" uf "%WORK%\blockbuster-final.jar" mchorse
+python "%ROOT%\set_version.py" "%WORK%\blockbuster-final.jar" "%BB_VERSION%"
+if errorlevel 1 (
+    echo VERSION FAILED
+    exit /b 1
+)
 
 echo === Deploying to mods folder ===
 copy /y "%WORK%\blockbuster-final.jar" "%BB_JAR%"

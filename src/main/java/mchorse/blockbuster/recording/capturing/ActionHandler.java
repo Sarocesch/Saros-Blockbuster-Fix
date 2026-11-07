@@ -261,6 +261,14 @@ public class ActionHandler
                 return;
             }
 
+            /* Forge meldet einen Klick fuer die Nebenhand nach, wenn die Haupthand
+             * nichts ausgeloest hat. Abgespielt wird immer mit der Haupthand -
+             * zwei Eintraege schalteten Tueren im selben Tick auf und wieder zu. */
+            if (event.getHand() != net.minecraft.util.EnumHand.MAIN_HAND)
+            {
+                return;
+            }
+
             events.add(new InteractBlockAction(event.getPos()));
         }
     }
@@ -339,6 +347,11 @@ public class ActionHandler
 
         if (!player.world.isRemote && events != null)
         {
+            if (this.recordLittleTilesDoor(events, player, event.getWorld(), event.getPos()))
+            {
+                return;
+            }
+
             IBlockState state = event.getPlacedBlock();
             Block block = state.getBlock();
 
@@ -357,6 +370,11 @@ public class ActionHandler
 
         if (!player.world.isRemote && events != null)
         {
+            if (this.recordLittleTilesDoor(events, player, event.getWorld(), event.getPos()))
+            {
+                return;
+            }
+
             List<BlockSnapshot> blocks = event.getReplacedBlockSnapshots();
 
             for (BlockSnapshot snapshot : blocks)
@@ -414,6 +432,33 @@ public class ActionHandler
         }
     }
 
+    /**
+     * LittleTiles oeffnet und schliesst eine Tuer, indem es sie mit dem
+     * klickenden Spieler in einer eigenen Animationswelt neu platziert. Der
+     * Klick selbst kommt nie als RightClickBlock an - vorher landete nur
+     * "place_block minecraft:air" in der Aufnahme. Daraus wird der Tuer-Klick,
+     * einmal pro Tick.
+     */
+    private boolean recordLittleTilesDoor(List<Action> events, EntityPlayer player, net.minecraft.world.World world, BlockPos pos)
+    {
+        if (world == null || world == player.world)
+        {
+            return false;
+        }
+
+        for (Action action : events)
+        {
+            if (action.getClass() == InteractBlockAction.class)
+            {
+                return true;
+            }
+        }
+
+        events.add(new InteractBlockAction(pos));
+
+        return true;
+    }
+
     private void placeBlock(List<Action> events, BlockPos pos, Block block, IBlockState state)
     {
         this.placeBlock(events, pos, block, block.getMetaFromState(state));
@@ -425,6 +470,13 @@ public class ActionHandler
     private void placeBlock(List<Action> events, BlockPos pos, Block block, int metadata)
     {
         ResourceLocation id = block.getRegistryName();
+
+        /* Luft setzt kein Spieler, und LittleTiles-Bloecke ohne ihre Kacheln
+         * wuerden beim Abspielen nur kaputte Bloecke hinterlassen. */
+        if (id == null || block == Blocks.AIR || "littletiles".equals(id.getResourceDomain()))
+        {
+            return;
+        }
 
         events.add(new PlaceBlockAction(pos, (byte) metadata, id.toString()));
     }

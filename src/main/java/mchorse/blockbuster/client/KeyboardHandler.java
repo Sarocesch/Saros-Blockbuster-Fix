@@ -80,6 +80,19 @@ public class KeyboardHandler
         event.register(mchorse.blockbuster.recording.actions.MwrpPoseAction.class, new mchorse.blockbuster.client.gui.dashboard.panels.recording_editor.actions.GuiMwrpPoseActionPanel(Minecraft.getMinecraft(), event.panel));
     }
 
+    /** Eigener Reiter "Loop-Szenen" in der linken Leiste, nach den Blockbuster-Reitern. */
+    @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.LOW)
+    public void onDashboardPanels(mchorse.mclib.events.RegisterDashboardPanels event)
+    {
+        if (event.dashboard instanceof mchorse.mclib.client.gui.mclib.GuiDashboard)
+        {
+            mchorse.mclib.client.gui.mclib.GuiDashboard dashboard = (mchorse.mclib.client.gui.mclib.GuiDashboard) event.dashboard;
+
+            dashboard.panels.registerPanel(new mchorse.blockbuster.client.gui.dashboard.panels.scene.GuiLoopScenesPanel(Minecraft.getMinecraft(), dashboard),
+                mchorse.mclib.client.gui.utils.keys.IKey.str("Loop-Szenen"), mchorse.mclib.client.gui.utils.Icons.SERVER);
+        }
+    }
+
     @SubscribeEvent
     public void onKey(InputEvent.KeyInputEvent event)
     {

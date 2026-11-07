@@ -44,9 +44,24 @@ public class InteractBlockAction extends Action
         this.pos = pos;
     }
 
+    /** Letzter Klick je Actor: Welt-Tick und Block. */
+    private static final java.util.Map<EntityLivingBase, String> LAST_CLICK = new java.util.WeakHashMap<EntityLivingBase, String>();
+
     @Override
     public void apply(EntityLivingBase actor)
     {
+        /* Aeltere Aufnahmen haben jeden Klick doppelt (Haupt- und Nebenhand).
+         * Zweimal im selben Tick schaltete eine Tuer auf und sofort wieder zu. */
+        if (this.getClass() == InteractBlockAction.class)
+        {
+            String key = actor.world.getTotalWorldTime() + ":" + this.pos.toLong();
+
+            if (key.equals(LAST_CLICK.put(actor, key)))
+            {
+                return;
+            }
+        }
+
         IBlockState state = actor.world.getBlockState(this.pos);
 
         /* Black listed block */
