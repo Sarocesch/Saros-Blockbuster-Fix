@@ -172,6 +172,8 @@ public final class SceneAutoResume
         LAST_NEAR.clear();
         ANCHORS.clear();
         BROKEN.clear();
+        SCHEDULE.clear();
+        scheduleLoaded = false;
     }
 
     /** Aus dem Oberwelt-Tick: jede Sekunde pruefen, wo Spieler sind. */
@@ -201,9 +203,11 @@ public final class SceneAutoResume
 
                 List<double[]> anchors = anchors(scene);
 
+                boolean timeOk = scheduleAllows(id, scene.getWorld());
+
                 if (scene.playing)
                 {
-                    if (playerNear(scene.getWorld(), anchors, scene, STOP))
+                    if (timeOk && playerNear(scene.getWorld(), anchors, scene, STOP))
                     {
                         LAST_NEAR.put(id, now);
                     }
@@ -233,11 +237,11 @@ public final class SceneAutoResume
                                 suspending = false;
                             }
 
-                            System.out.println("[Blockbuster] Loop-Szene " + id + " pausiert, kein Spieler in der Naehe.");
+                            System.out.println("[Blockbuster] Loop-Szene " + id + " pausiert, " + (timeOk ? "kein Spieler in der Naehe." : "ausserhalb ihrer Tageszeit."));
                         }
                     }
                 }
-                else if (playerNear(scene.getWorld(), anchors, null, START))
+                else if (timeOk && playerNear(scene.getWorld(), anchors, null, START))
                 {
                     if (anchors.size() < enabledReplays(scene))
                     {
@@ -263,6 +267,123 @@ public final class SceneAutoResume
             {
                 System.out.println("[Blockbuster] Loop-Szene " + id + ": " + t);
             }
+        }
+    }
+
+    /* Tageszeit pro Loop-Szene: 0 immer, 1 nur tags, 2 nur nachts.
+     * Eigene Datei, nicht in der Szene - so kann der Szenen-Abgleich sie nicht verlieren. */
+    public static final int ALWAYS = 0;
+    public static final int DAY = 1;
+    public static final int NIGHT = 2;
+
+    private static final Map<String, Integer> SCHEDULE = new HashMap<String, Integer>();
+    private static boolean scheduleLoaded;
+
+    public static int getSchedule(String id)
+    {
+        loadSchedule();
+
+        Integer value = SCHEDULE.get(id);
+
+        return value == null ? ALWAYS : value;
+    }
+
+    /** Menue: Immer -> Tag -> Nacht -> Immer. */
+    public static int cycleSchedule(String id)
+    {
+        int next = (getSchedule(id) + 1) % 3;
+
+        if (next == ALWAYS)
+        {
+            SCHEDULE.remove(id);
+        }
+        else
+        {
+            SCHEDULE.put(id, next);
+        }
+
+        saveSchedule();
+
+        return next;
+    }
+
+    public static boolean isNight(World world)
+    {
+        long time = world.getWorldTime() % 24000L;
+
+        return time >= 13000L && time < 23000L;
+    }
+
+    public static boolean scheduleAllows(String id, World world)
+    {
+        int schedule = getSchedule(id);
+
+        return schedule == ALWAYS || (schedule == NIGHT) == isNight(world);
+    }
+
+    private static File scheduleFile()
+    {
+        File scenes = SceneManager.sceneFile("x");
+
+        return scenes == null ? null : new File(scenes.getParentFile().getParentFile(), "loop_tageszeit.txt");
+    }
+
+    private static void loadSchedule()
+    {
+        if (scheduleLoaded)
+        {
+            return;
+        }
+
+        scheduleLoaded = true;
+
+        try
+        {
+            File file = scheduleFile();
+
+            if (file != null && file.isFile())
+            {
+                for (String line : Files.readAllLines(file.toPath(), StandardCharsets.UTF_8))
+                {
+                    int split = line.lastIndexOf('=');
+
+                    if (split > 0)
+                    {
+                        SCHEDULE.put(line.substring(0, split).trim(), Integer.parseInt(line.substring(split + 1).trim()));
+                    }
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] loop_tageszeit.txt nicht lesbar: " + t);
+        }
+    }
+
+    private static void saveSchedule()
+    {
+        try
+        {
+            File file = scheduleFile();
+
+            if (file == null)
+            {
+                return;
+            }
+
+            List<String> lines = new ArrayList<String>();
+
+            for (Map.Entry<String, Integer> entry : SCHEDULE.entrySet())
+            {
+                lines.add(entry.getKey() + "=" + entry.getValue());
+            }
+
+            file.getParentFile().mkdirs();
+            Files.write(file.toPath(), lines, StandardCharsets.UTF_8);
+        }
+        catch (Throwable t)
+        {
+            System.out.println("[Blockbuster] loop_tageszeit.txt nicht schreibbar: " + t);
         }
     }
 

@@ -130,6 +130,10 @@ public class GuiLoopOverview extends GuiElement
             {
                 this.request(entry.active ? PacketLoopSceneAction.OFF : PacketLoopSceneAction.ON, entry.id);
             }
+            else if (x >= this.buttonX(3) && x < this.buttonX(3) + BUTTON_W)
+            {
+                this.request(PacketLoopSceneAction.SCHEDULE, entry.id);
+            }
             else if (x >= this.buttonX(2) && x < this.buttonX(2) + BUTTON_W && entry.active)
             {
                 this.request(PacketLoopSceneAction.RESTART, entry.id);
@@ -203,6 +207,11 @@ public class GuiLoopOverview extends GuiElement
                 status = "laeuft, Actors " + entry.alive + "/" + entry.total;
                 color = broken ? 0xffaa00 : 0x55ff55;
             }
+            else if (entry.active && !entry.timeOk)
+            {
+                status = entry.schedule == 2 ? "wartet auf die Nacht" : "wartet auf den Tag";
+                color = 0x8888ff;
+            }
             else if (entry.active)
             {
                 status = "wartet auf Spieler in der Naehe";
@@ -214,7 +223,7 @@ public class GuiLoopOverview extends GuiElement
                 color = 0x888888;
             }
 
-            int textW = this.buttonX(2) - this.area.x - 20;
+            int textW = this.buttonX(3) - this.area.x - 20;
 
             this.font.drawStringWithShadow(this.font.trimStringToWidth(name, textW), this.area.x + 10, y + 2, 0xffffff);
             this.font.drawStringWithShadow(this.font.trimStringToWidth(status
@@ -225,6 +234,14 @@ public class GuiLoopOverview extends GuiElement
             if (entry.active)
             {
                 this.button(this.buttonX(2), y, "Neu", 0xff886622, context);
+            }
+
+            {
+                String[] times = {"Immer", "Tag", "Nacht"};
+                int[] colors = {0xff555555, 0xffaa8822, 0xff333388};
+                int schedule = Math.max(0, Math.min(2, entry.schedule));
+
+                this.button(this.buttonX(3), y, times[schedule], colors[schedule], context);
             }
 
             if (entry.hasPos)
@@ -238,7 +255,7 @@ public class GuiLoopOverview extends GuiElement
             this.font.drawStringWithShadow("Keine Szene mit Loops gefunden.", this.area.x + 10, y0 + 4, 0xaaaaaa);
         }
 
-        this.font.drawStringWithShadow("An = dauerhaft an (nur bei Spielern in der Naehe). Aus = beenden. Neu = alle Actors frisch.",
+        this.font.drawStringWithShadow("An/Aus = dauerhaft an/beenden. Neu = Actors frisch. Immer/Tag/Nacht = nur zu dieser Tageszeit.",
             this.area.x + 10, this.area.ey() - 16, 0x888888);
 
         super.draw(context);
