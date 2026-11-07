@@ -215,6 +215,11 @@ public final class SceneAutoResume
                         {
                             LAST_NEAR.put(id, now);
                         }
+                        else if (now - last >= IDLE_TICKS && doorMovingNear(scene))
+                        {
+                            /* Erst pausieren, wenn keine LittleTiles-Tuer mehr in Bewegung ist. */
+                            LAST_NEAR.put(id, now - IDLE_TICKS + CHECK_EVERY);
+                        }
                         else if (now - last >= IDLE_TICKS)
                         {
                             suspending = true;
@@ -259,6 +264,21 @@ public final class SceneAutoResume
                 System.out.println("[Blockbuster] Loop-Szene " + id + ": " + t);
             }
         }
+    }
+
+    private static boolean doorMovingNear(Scene scene)
+    {
+        for (RecordPlayer actor : scene.actors.values())
+        {
+            Entity entity = actor.actor;
+
+            if (entity != null && mchorse.blockbuster.recording.LTHelper.doorMoving(scene.getWorld(), entity.posX, entity.posZ, 32))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static boolean playerNear(World world, List<double[]> anchors, Scene scene, double radius)

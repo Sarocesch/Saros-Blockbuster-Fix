@@ -225,6 +225,58 @@ public class LTHelper
         return best;
     }
 
+    private static Field animationController;
+    private static Method controllerChanging;
+
+    /**
+     * Bewegt sich gerade eine LittleTiles-Tuer im Umkreis? Waehrend der
+     * Bewegung darf der Chunk nicht entladen werden, sonst passen Tuer,
+     * Animation und Schalter beim naechsten Laden nicht mehr zusammen.
+     */
+    public static boolean doorMoving(World world, double x, double z, double radius)
+    {
+        if (!resolve())
+        {
+            return false;
+        }
+
+        try
+        {
+            if (animationController == null)
+            {
+                animationController = animationClass.getField("controller");
+                controllerChanging = Class.forName("com.creativemd.littletiles.common.structure.animation.AnimationController").getMethod("isChanging");
+            }
+
+            for (Entity entity : new java.util.ArrayList<Entity>(world.loadedEntityList))
+            {
+                if (!animationClass.isInstance(entity) || entity.isDead)
+                {
+                    continue;
+                }
+
+                double dx = entity.posX - x;
+                double dz = entity.posZ - z;
+
+                if (dx * dx + dz * dz > radius * radius)
+                {
+                    continue;
+                }
+
+                Object controller = animationController.get(entity);
+
+                if (controller != null && Boolean.TRUE.equals(controllerChanging.invoke(controller)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Throwable t)
+        {}
+
+        return false;
+    }
+
     /** Fuer das Server-Log: wie viele Tuer-Animationen der letzte Strahl geprueft hat. */
     public static int lastChecked;
 

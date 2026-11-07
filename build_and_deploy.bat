@@ -23,7 +23,7 @@ echo === MWF:       %MWF_JAR%
 echo === Metamorph: %METAMORPH_JAR%
 rem Mod-Version: bei JEDEM Release hochzaehlen, gleich wie der Dateiname (-YYYYMMDD.N).
 rem Forge laesst Client und Server mit unterschiedlicher Version dann nicht zusammen.
-set "BB_VERSION=2.7-20261107.11"
+set "BB_VERSION=2.7-20261107.12"
 set "ROOT=t:\MyModsCode\Saros Blockbuster Fix"
 set "ROOTFWD=t:/MyModsCode/Saros Blockbuster Fix"
 set "WORK=%TEMP%\bb_compile_patch"
