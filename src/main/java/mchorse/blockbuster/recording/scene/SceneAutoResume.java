@@ -1,29 +1,47 @@
 package mchorse.blockbuster.recording.scene;
 
 import mchorse.blockbuster.CommonProxy;
+import mchorse.blockbuster.recording.RecordPlayer;
 import mchorse.blockbuster.recording.data.Frame;
 import mchorse.blockbuster.recording.data.Record;
-import net.minecraft.server.MinecraftServer;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * Loop-Szenen laufen nach einem Server-Neustart weiter. Beim Start einer Szene
- * mit Loops wird ihr Name gemerkt, bei /scene stop wieder entfernt. Das
- * Herunterfahren stoppt Szenen nicht (SceneManager.reset), der Eintrag bleibt.
- * Datei: blockbuster/autoplay.txt im Weltordner, ein Szenenname pro Zeile.
+ * Dauerhafte Loop-Szenen, die nur laufen, wenn ein Spieler in der Naehe ist.
+ *
+ * <p>Startet jemand eine Szene mit Loops, wird ihr Name gemerkt
+ * (blockbuster/autoplay.txt im Weltordner); /scene stop nimmt sie wieder heraus.
+ * Der Server haelt sie aber nur aktiv, solange ein Spieler naeher als
+ * {@link #START} Bloecke an einem Startpunkt ist. Ist laenger als
+ * {@link #IDLE_TICKS} keiner mehr im Umkreis von {@link #STOP} Bloecken um
+ * Startpunkte oder Actors, verschwinden die Actors und die Chunks werden frei.
+ * START liegt ueber der Server-Sichtweite (9 Chunks), keiner sieht das Auftauchen.
+ * Das gilt auch nach einem Neustart.</p>
  */
 public final class SceneAutoResume
 {
+    private static final double START = 160;
+    private static final double STOP = 200;
+    private static final int IDLE_TICKS = 200;
+    private static final int CHECK_EVERY = 20;
+
     private static final Set<String> RUNNING = new LinkedHashSet<String>();
+    private static final Map<String, Long> LAST_NEAR = new HashMap<String, Long>();
+    private static final Map<String, List<double[]>> ANCHORS = new HashMap<String, List<double[]>>();
     private static boolean loaded;
+    private static boolean suspending;
 
     private SceneAutoResume()
     {}
@@ -33,6 +51,8 @@ public final class SceneAutoResume
         if (scene.loops && !scene.getWorld().isRemote)
         {
             load();
+            ANCHORS.remove(scene.getId());
+            LAST_NEAR.put(scene.getId(), scene.getWorld().getTotalWorldTime());
 
             if (RUNNING.add(scene.getId()))
             {
@@ -43,7 +63,14 @@ public final class SceneAutoResume
 
     public static void stopped(String id)
     {
+        /* Pause mangels Spieler: bleibt dauerhaft an. */
+        if (suspending)
+        {
+            return;
+        }
+
         load();
+        LAST_NEAR.remove(id);
 
         if (RUNNING.remove(id))
         {
@@ -51,14 +78,26 @@ public final class SceneAutoResume
         }
     }
 
-    /** Nach dem Serverstart: gemerkte Loop-Szenen wieder starten. */
-    public static void resume(MinecraftServer server)
+    /** Server neu gestartet oder Welt neu geladen: Liste frisch von der Platte. */
+    public static void reset()
     {
         loaded = false;
         RUNNING.clear();
+        LAST_NEAR.clear();
+        ANCHORS.clear();
+    }
+
+    /** Aus dem Oberwelt-Tick: jede Sekunde pruefen, wo Spieler sind. */
+    public static void tick(World world)
+    {
+        if (world.getTotalWorldTime() % CHECK_EVERY != 0)
+        {
+            return;
+        }
+
         load();
 
-        World world = server.getWorld(0);
+        long now = world.getTotalWorldTime();
 
         for (String id : new ArrayList<String>(RUNNING))
         {
@@ -73,27 +112,107 @@ public final class SceneAutoResume
                     continue;
                 }
 
+                List<double[]> anchors = anchors(scene);
+
                 if (scene.playing)
                 {
-                    continue;
-                }
+                    if (playerNear(scene.getWorld(), anchors, scene, STOP))
+                    {
+                        LAST_NEAR.put(id, now);
+                    }
+                    else
+                    {
+                        Long last = LAST_NEAR.get(id);
 
-                loadStartChunks(scene, world);
-                scene.startPlayback(0);
-                System.out.println("[Blockbuster] Loop-Szene nach Neustart wieder gestartet: " + id);
+                        if (last == null)
+                        {
+                            LAST_NEAR.put(id, now);
+                        }
+                        else if (now - last >= IDLE_TICKS)
+                        {
+                            suspending = true;
+
+                            try
+                            {
+                                scene.stopPlayback(true, true);
+                            }
+                            finally
+                            {
+                                suspending = false;
+                            }
+
+                            System.out.println("[Blockbuster] Loop-Szene " + id + " pausiert, kein Spieler in der Naehe.");
+                        }
+                    }
+                }
+                else if (playerNear(scene.getWorld(), anchors, null, START))
+                {
+                    loadStartChunks(scene.getWorld(), anchors);
+                    scene.startPlayback(0);
+                    LAST_NEAR.put(id, now);
+                    System.out.println("[Blockbuster] Loop-Szene " + id + " gestartet, Spieler in der Naehe.");
+                }
             }
             catch (Throwable t)
             {
-                System.out.println("[Blockbuster] Loop-Szene " + id + " konnte nicht wieder starten: " + t);
+                System.out.println("[Blockbuster] Loop-Szene " + id + ": " + t);
             }
         }
     }
 
-    /** Actors entstehen nur in geladenen Chunks - die Startpunkte vorher laden. */
-    private static void loadStartChunks(Scene scene, World world)
+    private static boolean playerNear(World world, List<double[]> anchors, Scene scene, double radius)
     {
+        double r2 = radius * radius;
+
+        for (EntityPlayer player : world.playerEntities)
+        {
+            for (double[] anchor : anchors)
+            {
+                double dx = player.posX - anchor[0];
+                double dz = player.posZ - anchor[1];
+
+                if (dx * dx + dz * dz <= r2)
+                {
+                    return true;
+                }
+            }
+
+            if (scene != null)
+            {
+                for (RecordPlayer actor : scene.actors.values())
+                {
+                    Entity entity = actor.actor;
+
+                    if (entity != null && !entity.isDead && entity.getDistanceSq(player.posX, entity.posY, player.posZ) <= r2)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** Erstes Bild jeder Aufnahme der Szene. */
+    private static List<double[]> anchors(Scene scene)
+    {
+        List<double[]> anchors = ANCHORS.get(scene.getId());
+
+        if (anchors != null)
+        {
+            return anchors;
+        }
+
+        anchors = new ArrayList<double[]>();
+
         for (Replay replay : scene.replays)
         {
+            if (!replay.enabled)
+            {
+                continue;
+            }
+
             try
             {
                 Record record = CommonProxy.manager.get(replay.id);
@@ -102,11 +221,24 @@ public final class SceneAutoResume
                 {
                     Frame frame = record.frames.get(0);
 
-                    world.getChunkFromChunkCoords((int) Math.floor(frame.x) >> 4, (int) Math.floor(frame.z) >> 4);
+                    anchors.add(new double[] {frame.x, frame.z});
                 }
             }
             catch (Throwable t)
             {}
+        }
+
+        ANCHORS.put(scene.getId(), anchors);
+
+        return anchors;
+    }
+
+    /** Actors entstehen nur in geladenen Chunks - die Startpunkte vorher laden. */
+    private static void loadStartChunks(World world, List<double[]> anchors)
+    {
+        for (double[] anchor : anchors)
+        {
+            world.getChunkFromChunkCoords((int) Math.floor(anchor[0]) >> 4, (int) Math.floor(anchor[1]) >> 4);
         }
     }
 
@@ -158,10 +290,8 @@ public final class SceneAutoResume
                 return;
             }
 
-            List<String> lines = new ArrayList<String>(RUNNING);
-
             file.getParentFile().mkdirs();
-            Files.write(file.toPath(), lines, StandardCharsets.UTF_8);
+            Files.write(file.toPath(), new ArrayList<String>(RUNNING), StandardCharsets.UTF_8);
         }
         catch (Throwable t)
         {

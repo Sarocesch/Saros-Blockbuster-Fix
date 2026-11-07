@@ -145,6 +145,8 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpCustomPose.j
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/scene/SceneAutoResume.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/gui/GuiNpcSkinPicker.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster_pack/client/gui/GuiCustomMorph.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/LTHelper.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/InteractBlockAction.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/GtwSkins.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMarkerActionPanel.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMwrpPoseActionPanel.java"

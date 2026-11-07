@@ -59,21 +59,18 @@ public class SceneManager
 
         this.scenes.clear();
         SceneEditors.reset();
-        this.resumed = false;
+        SceneAutoResume.reset();
     }
-
-    /** Loop-Szenen nach einem Serverstart erst im ersten Tick der Oberwelt wieder starten. */
-    private boolean resumed;
 
     /**
      * Spawn actors and execute unsafe actions
      */
     public void worldTick(World world)
     {
-        if (!this.resumed && world.provider.getDimension() == 0 && world.getMinecraftServer() != null)
+        /* Dauerhafte Loop-Szenen: nur aktiv, wenn ein Spieler in der Naehe ist. */
+        if (world.provider.getDimension() == 0)
         {
-            this.resumed = true;
-            SceneAutoResume.resume(world.getMinecraftServer());
+            SceneAutoResume.tick(world);
         }
 
         for (Map.Entry<String, Scene> entry : this.scenes.entrySet())

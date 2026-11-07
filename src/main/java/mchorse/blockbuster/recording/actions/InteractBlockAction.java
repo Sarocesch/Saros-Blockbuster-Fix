@@ -69,6 +69,8 @@ public class InteractBlockAction extends Action
         {
             if (BLACKLIST.contains(state.getBlock().getRegistryName()))
             {
+                LTHelper.playerRightClickAt(player, frame, this.pos);
+
                 return;
             }
 
