@@ -665,6 +665,12 @@ public class Scene
             }
 
             actor.startPlaying(replay.id, tick, !this.loops);
+
+            /* Auch beim Start (Autostart, Neu, nach Pause) wuerfeln, nicht erst beim Loop-Neustart. */
+            if (this.loops)
+            {
+                randomizeSkin(actor.actor);
+            }
         }
 
         this.playing = true;
