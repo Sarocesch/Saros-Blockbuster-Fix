@@ -48,7 +48,11 @@ public final class SaroDirty
 
             if (te != null && te.getWorld() != null && !te.getWorld().isRemote)
             {
-                te.markDirty();
+                /* Nur zum Speichern vormerken. te.markDirty() meldet ueber
+                 * updateComparatorOutputLevel allen Nachbarn eine Aenderung -
+                 * mitten in connect/disconnect eines Signalkabels verbindet sich
+                 * das Nachbarkabel dann doppelt (Server-Absturz). */
+                te.getWorld().markChunkDirty(te.getPos(), te);
             }
         }
         catch (Throwable t)

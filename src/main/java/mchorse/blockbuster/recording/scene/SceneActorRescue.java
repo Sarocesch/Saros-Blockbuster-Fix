@@ -10,9 +10,11 @@ import mchorse.blockbuster.network.Dispatcher;
 import mchorse.blockbuster.network.common.recording.PacketPlayback;
 import mchorse.blockbuster.network.common.recording.PacketSyncTick;
 import mchorse.blockbuster.recording.RecordPlayer;
+import mchorse.blockbuster.recording.actions.MwrpPoseAction;
 import mchorse.blockbuster.recording.data.Record;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.util.ClassInheritanceMultiMap;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
@@ -159,6 +161,19 @@ public class SceneActorRescue
             {
                 player.record.applyPreviousMorph(copy, replay, player.tick, Record.MorphType.FORCE);
             }
+        }
+
+        /* Die Wiedergabe lief am alten Exemplar weiter, auch waehrend der Chunk weg war.
+         * Die Kopie traegt den Stand vom Entladen - eine Taschenlampe, die per Rechtsklick
+         * nur umschaltet, blieb sonst bis zum Neustart falsch herum. */
+        for (EntityEquipmentSlot slot : EntityEquipmentSlot.values())
+        {
+            copy.setItemStackToSlot(slot, old.getItemStackFromSlot(slot).copy());
+        }
+
+        if (old instanceof EntityActor)
+        {
+            new MwrpPoseAction(((EntityActor) old).mwrpPose).apply(copy);
         }
 
         /* Sass das alte Exemplar in einem Auto, die Kopie aber nicht (der Sitz wurde
