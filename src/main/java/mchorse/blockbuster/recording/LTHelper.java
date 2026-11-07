@@ -38,6 +38,10 @@ public class LTHelper
     private static Method activateServer;
     private static Class<?> animationClass;
     private static Field animationStructure;
+    private static Field animationOrigin;
+    private static Field animationFakeWorld;
+    private static Method toFakeWorld;
+    private static Method toWorld;
     private static Class<?> doorClass;
     private static Method doorActivate;
     private static Object rightClick;
@@ -109,19 +113,8 @@ public class LTHelper
         RayTraceResult result = world.rayTraceBlocks(from, to);
         double distance = result != null && result.hitVec != null ? from.distanceTo(result.hitVec) : Double.MAX_VALUE;
 
-        Entity pointed = null;
-        AxisAlignedBB box = new AxisAlignedBB(from.x, from.y, from.z, to.x, to.y, to.z).grow(1);
-
-        for (Entity entity : world.getEntitiesWithinAABB(Entity.class, box, (e) -> animationClass.isInstance(e)))
-        {
-            RayTraceResult hit = entity.getEntityBoundingBox().calculateIntercept(from, to);
-
-            if (hit != null && from.distanceTo(hit.hitVec) < distance)
-            {
-                distance = from.distanceTo(hit.hitVec);
-                pointed = entity;
-            }
-        }
+        Object[] pointedHit = pointedAnimation(world, from, to, distance);
+        Entity pointed = pointedHit == null ? null : (Entity) pointedHit[0];
 
         if (pointed != null)
         {
@@ -167,21 +160,58 @@ public class LTHelper
         Vec3d to = from.add(Vec3d.fromPitchYaw(player.rotationPitch, player.rotationYaw).scale(5));
         RayTraceResult block = player.world.rayTraceBlocks(from, to);
         double best = block != null && block.hitVec != null ? from.distanceTo(block.hitVec) : Double.MAX_VALUE;
-        Vec3d hit = null;
-        AxisAlignedBB box = new AxisAlignedBB(from.x, from.y, from.z, to.x, to.y, to.z).grow(1);
-
-        for (Entity entity : player.world.getEntitiesWithinAABB(Entity.class, box, (e) -> animationClass.isInstance(e)))
+        try
         {
-            RayTraceResult result = entity.getEntityBoundingBox().calculateIntercept(from, to);
+            Object[] pointed = pointedAnimation(player.world, from, to, best);
 
-            if (result != null && from.distanceTo(result.hitVec) < best)
+            return pointed == null ? null : new BlockPos((Vec3d) pointed[1]);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    /**
+     * Wie LittleAnimationHandlerClient.getTarget: Strahl in die eigene Welt
+     * jeder Tuer-Animation umrechnen und dort die Kacheln treffen. Die Hitbox
+     * der Animation passt nicht zur Tuer. Liefert {Entity, Treffer in Weltkoordinaten}.
+     */
+    private static Object[] pointedAnimation(World world, Vec3d from, Vec3d to, double maxDistance) throws Exception
+    {
+        Object[] best = null;
+        AxisAlignedBB box = new AxisAlignedBB(from.x, from.y, from.z, to.x, to.y, to.z).grow(16);
+
+        for (Entity entity : world.getEntitiesWithinAABB(Entity.class, box, (e) -> animationClass.isInstance(e)))
+        {
+            Object origin = animationOrigin.get(entity);
+            World fake = (World) animationFakeWorld.get(entity);
+
+            if (origin == null || fake == null)
             {
-                best = from.distanceTo(result.hitVec);
-                hit = result.hitVec;
+                continue;
+            }
+
+            Vec3d fakeFrom = (Vec3d) toFakeWorld.invoke(origin, from);
+            Vec3d fakeTo = (Vec3d) toFakeWorld.invoke(origin, to);
+            RayTraceResult result = fake.rayTraceBlocks(fakeFrom, fakeTo);
+
+            if (result == null || result.typeOfHit != RayTraceResult.Type.BLOCK || result.hitVec == null)
+            {
+                continue;
+            }
+
+            Vec3d hit = (Vec3d) toWorld.invoke(origin, result.hitVec);
+            double distance = from.distanceTo(hit);
+
+            if (distance < maxDistance)
+            {
+                maxDistance = distance;
+                best = new Object[] {entity, hit};
             }
         }
 
-        return hit == null ? null : new BlockPos(hit);
+        return best;
     }
 
     private static boolean resolve()
@@ -204,6 +234,13 @@ public class LTHelper
 
             animationClass = Class.forName("com.creativemd.littletiles.common.entity.EntityAnimation");
             animationStructure = animationClass.getField("structure");
+            animationOrigin = animationClass.getField("origin");
+            animationFakeWorld = animationClass.getField("fakeWorld");
+
+            Class<?> vecOrigin = Class.forName("com.creativemd.creativecore.common.utils.math.vec.IVecOrigin");
+
+            toFakeWorld = vecOrigin.getMethod("transformPointToFakeWorld", Vec3d.class);
+            toWorld = vecOrigin.getMethod("transformPointToWorld", Vec3d.class);
 
             doorClass = Class.forName("com.creativemd.littletiles.common.structure.type.door.LittleDoor");
 
