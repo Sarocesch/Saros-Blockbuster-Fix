@@ -27,6 +27,7 @@ public class KeyboardHandler
     private KeyBinding record;
     private KeyBinding pause;
     private KeyBinding openGun;
+    private KeyBinding marker;
     public static KeyBinding zoom;
     public static KeyBinding gunReload;
     public static KeyBinding gunShoot;
@@ -47,6 +48,8 @@ public class KeyboardHandler
         this.zoom = new KeyBinding("key.blockbuster.zoom", 0, category);
         this.gunReload = new KeyBinding("key.blockbuster.gun_reload", 19, category);
         this.gunShoot = new KeyBinding("key.blockbuster.gun_shoot", -100, category);
+        /* Komma: M ist im Minewache-Pack schon Karte und MWF-Aufsaetze. */
+        this.marker = new KeyBinding("Aufnahme-Marker setzen", Keyboard.KEY_COMMA, category);
 
         ClientRegistry.registerKeyBinding(this.plause);
         ClientRegistry.registerKeyBinding(this.record);
@@ -55,6 +58,7 @@ public class KeyboardHandler
         ClientRegistry.registerKeyBinding(this.zoom);
         ClientRegistry.registerKeyBinding(this.gunReload);
         ClientRegistry.registerKeyBinding(this.gunShoot);
+        ClientRegistry.registerKeyBinding(this.marker);
     }
 
     @SubscribeEvent
@@ -67,6 +71,14 @@ public class KeyboardHandler
         Minecraft.getMinecraft().addScheduledTask(StructureMorph::cleanUp);
     }
 
+
+    /** Editor-Felder fuer Marker und MWRP-Posen, ohne den Aktions-Editor selbst anzufassen. */
+    @SubscribeEvent
+    public void onActionPanels(mchorse.blockbuster.events.ActionPanelRegisterEvent event)
+    {
+        event.register(mchorse.blockbuster.recording.actions.MarkerAction.class, new mchorse.blockbuster.client.gui.dashboard.panels.recording_editor.actions.GuiMarkerActionPanel(Minecraft.getMinecraft(), event.panel));
+        event.register(mchorse.blockbuster.recording.actions.MwrpPoseAction.class, new mchorse.blockbuster.client.gui.dashboard.panels.recording_editor.actions.GuiMwrpPoseActionPanel(Minecraft.getMinecraft(), event.panel));
+    }
 
     @SubscribeEvent
     public void onKey(InputEvent.KeyInputEvent event)
@@ -93,6 +105,11 @@ public class KeyboardHandler
             {
                 ClientProxy.panels.scenePanel.pause();
             }
+        }
+
+        if (this.marker.isPressed())
+        {
+            mchorse.blockbuster.network.Dispatcher.sendToServer(new mchorse.blockbuster.network.common.PacketRecordMarker());
         }
 
         Minecraft mc = Minecraft.getMinecraft();

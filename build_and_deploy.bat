@@ -139,6 +139,17 @@ echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/scene/ClientHan
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/scene/ClientHandlerSceneBackup.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiSceneManager.java"
 echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/scene/GuiReplaySelector.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/KeyboardHandler.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/MwrpPoseBridge.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/render/GtwSkins.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMarkerActionPanel.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/client/gui/dashboard/panels/recording_editor/actions/GuiMwrpPoseActionPanel.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/client/ClientHandlerActorPose.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/common/PacketActorPose.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/common/PacketRecordMarker.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/network/server/ServerHandlerRecordMarker.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/MarkerAction.java"
+echo "%ROOTFWD%/src/main/java/mchorse/blockbuster/recording/actions/MwrpPoseAction.java"
 ) > "%SRCLIST%"
 
 echo === Compiling ===

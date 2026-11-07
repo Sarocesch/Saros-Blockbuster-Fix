@@ -20,6 +20,7 @@ import mchorse.blockbuster.recording.actions.Action;
 import mchorse.blockbuster.recording.actions.MMStateAction;
 import mchorse.blockbuster.recording.actions.MWFAimAction;
 import mchorse.blockbuster.recording.actions.MWFExtraSlotAction;
+import mchorse.blockbuster.recording.actions.MwrpPoseAction;
 import mchorse.blockbuster.recording.mwf.MWFCompat;
 import mchorse.blockbuster.recording.actions.AttackAction;
 import mchorse.blockbuster.recording.actions.BreakBlockAction;
@@ -124,6 +125,9 @@ public class ActionHandler
 
     /** Last-known ModularMovements pose code per recording player. */
     private final Map<UUID, Integer> lastMovement = new HashMap<UUID, Integer>();
+
+    /** Zuletzt aufgezeichnete MWRP-Pose je Aufnehmendem. */
+    private final Map<UUID, String> lastPose = new HashMap<UUID, String>();
 
     /** Zu welcher Aufnahme der Delta-Zustand oben gehoert. */
     private final Map<UUID, Object> lastRecorder = new HashMap<UUID, Object>();
@@ -690,6 +694,7 @@ public class ActionHandler
             this.lastVests.remove(player.getUniqueID());
             this.lastAiming.remove(player.getUniqueID());
             this.lastMovement.remove(player.getUniqueID());
+            this.lastPose.remove(player.getUniqueID());
             this.lastRecorder.remove(player.getUniqueID());
         }
     }
@@ -815,6 +820,7 @@ public class ActionHandler
                     this.lastVests.remove(player.getUniqueID());
                     this.lastAiming.remove(player.getUniqueID());
                     this.lastMovement.remove(player.getUniqueID());
+                    this.lastPose.remove(player.getUniqueID());
                     this.dynamxHandler.clearPlayer(player.getUniqueID());
                 }
 
@@ -822,6 +828,7 @@ public class ActionHandler
                 this.tickMWFVest(player);
                 this.tickMWFAim(player);
                 this.tickMovementState(player);
+                this.tickMwrpPose(player);
                 recorder.record(player);
             }
         }
@@ -943,5 +950,61 @@ public class ActionHandler
         }
         catch (Throwable ignored)
         {}
+    }
+
+    private static boolean poseResolved;
+    private static java.lang.reflect.Method methodPoseGet;
+    private static java.lang.reflect.Field fieldPoseId;
+
+    /**
+     * Die MWRP-Pose des Aufnehmenden (/pose, Posen-Menue) mitschreiben. Gefragt wird
+     * MWRPs Server-Zustand, so zaehlt jeder Weg, eine Pose zu setzen. Abgelaufene
+     * Zeit-Posen meldet MWRP als keine, das landet als "" in der Aufnahme.
+     */
+    private void tickMwrpPose(EntityPlayer player)
+    {
+        try
+        {
+            if (!poseResolved)
+            {
+                poseResolved = true;
+
+                Class<?> manager = Class.forName("de.sarocesch.minewacheroleplaymod.animation.pose.PoseManager");
+
+                methodPoseGet = manager.getMethod("get", UUID.class);
+                fieldPoseId = Class.forName("de.sarocesch.minewacheroleplaymod.animation.pose.ActivePose").getField("poseId");
+            }
+
+            if (methodPoseGet == null) return;
+
+            UUID id = player.getUniqueID();
+            Object active = methodPoseGet.invoke(null, id);
+            String pose = active == null ? null : (String) fieldPoseId.get(active);
+            String previous = this.lastPose.get(id);
+
+            if (pose == null) pose = "";
+
+            /* Ohne Pose zu Beginn nichts schreiben, das Ende einer Pose aber schon. */
+            if (pose.isEmpty() && previous == null) return;
+            if (pose.equals(previous)) return;
+
+            List<Action> actions = CommonProxy.manager.getActions(player);
+
+            if (actions != null)
+            {
+                actions.add(new MwrpPoseAction(pose));
+            }
+
+            this.lastPose.put(id, pose);
+        }
+        catch (Throwable t)
+        {
+            if (methodPoseGet != null)
+            {
+                System.out.println("[Blockbuster] MWRP-Pose nicht aufgezeichnet: " + t);
+            }
+
+            methodPoseGet = null;
+        }
     }
 }

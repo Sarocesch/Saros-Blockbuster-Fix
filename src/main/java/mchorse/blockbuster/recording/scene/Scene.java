@@ -439,6 +439,9 @@ public class Scene
     {
         try
         {
+            /* Die Idle-Aufnahme bringt ihre eigenen Posen mit. */
+            new mchorse.blockbuster.recording.actions.MwrpPoseAction("").apply(actor);
+
             RecordPlayer idle = CommonProxy.manager.play(replay.idleRecord, actor, Mode.BOTH, 0, false);
 
             if (idle == null)

@@ -53,14 +53,15 @@ public final class ActorPuppetRenderer
     public static boolean render(RenderManager manager, EntityActor actor, double x, double y, double z, float yaw, float partialTicks)
     {
         ActorAppearance look = actor.appearance;
+        boolean npc = !actor.npcSkin.isEmpty();
 
-        if (look == null || !isHumanoid(actor.getMorph()))
+        if (look == null && !npc || !isHumanoid(actor.getMorph()))
         {
             return false;
         }
 
         /* Ohne CPM haette das Gesicht Loecher, wo die 3D-Augen sitzen sollten. */
-        if (look.cpm != null && !resolveCpm())
+        if (!npc && look.cpm != null && !resolveCpm())
         {
             return false;
         }
@@ -69,9 +70,10 @@ public final class ActorPuppetRenderer
         {
             ensureEvents();
 
-            ActorPuppet puppet = puppetFor(actor, look);
+            /* Ein NPC-Skin gewinnt gegen den Skin des Aufnehmenden, ohne CPM. */
+            ActorPuppet puppet = npc ? puppetForNpc(actor) : puppetFor(actor, look);
 
-            if (look.cpm != null)
+            if (!npc && look.cpm != null)
             {
                 registerCpm(puppet, look);
                 applyGestures(puppet, look);
@@ -87,6 +89,7 @@ public final class ActorPuppetRenderer
                 return false;
             }
 
+            MwrpPoseBridge.sync(actor);
             renderer.doRender(puppet, x, y, z, yaw, partialTicks);
 
             return true;
@@ -97,6 +100,7 @@ public final class ActorPuppetRenderer
             System.out.println("[Blockbuster] Spielermodell fuer Actor " + actor.getEntityId() + " fehlgeschlagen, zeige Morph: " + t);
             actor.appearance = null;
             actor.appearancePuppet = null;
+            actor.npcSkin = "";
 
             return false;
         }
@@ -144,6 +148,39 @@ public final class ActorPuppetRenderer
          * alpha = 1 + partialTicks/10; CPM uebernimmt sie fuer seine Wuerfel, das Byte
          * laeuft ueber (1.05 -> 11/255), und der Alpha-Test verwirft die Augen. Nur bei
          * partialTicks ~ 0 blitzten sie kurz auf. Einmal aktualisieren = nicht animiert. */
+        mchorse.metamorph.capabilities.morphing.IMorphing morphing = mchorse.metamorph.capabilities.morphing.Morphing.get(puppet);
+
+        if (morphing != null)
+        {
+            morphing.update(puppet);
+        }
+
+        return puppet;
+    }
+
+    /**
+     * Stellvertreter mit einem GtwNpc-Skin. Eigener Profil-Name je Skin, so findet
+     * CPM dafuer nie ein Modell. Die Textur laedt GtwNpc selbst (SkinTexture).
+     */
+    private static ActorPuppet puppetForNpc(EntityActor actor)
+    {
+        String key = "npc:" + actor.npcSkin;
+        Object existing = actor.appearancePuppet;
+
+        if (existing instanceof ActorPuppet && ((ActorPuppet) existing).hash.equals(key))
+        {
+            return (ActorPuppet) existing;
+        }
+
+        ResourceLocation location = new ResourceLocation(actor.npcSkin);
+        ActorPuppet puppet = new ActorPuppet(actor, key, "bb_actor");
+
+        puppet.slim = GtwSkins.isSmall(location);
+        /* Fehlt der Skin auf diesem Rechner: Steve statt Schachbrett. */
+        puppet.skin = GtwSkins.all().contains(actor.npcSkin) ? location : null;
+        actor.appearancePuppet = puppet;
+
+        /* Wie in puppetFor: sonst verwirft der Alpha-Test Teile des Modells. */
         mchorse.metamorph.capabilities.morphing.IMorphing morphing = mchorse.metamorph.capabilities.morphing.Morphing.get(puppet);
 
         if (morphing != null)

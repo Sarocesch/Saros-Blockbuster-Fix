@@ -250,6 +250,11 @@ public class Dispatcher
             register(mchorse.blockbuster.network.common.scene.PacketSceneBackup.class, mchorse.blockbuster.network.client.scene.ClientHandlerSceneBackup.class, Side.CLIENT);
 
             CameraHandler.registerMessages();
+
+            /* MWRP-Posen auf Actors und die Marker-Taste. Hinter Aperture, damit
+             * dessen Paketnummern gleich bleiben. */
+            register(mchorse.blockbuster.network.common.PacketActorPose.class, mchorse.blockbuster.network.client.ClientHandlerActorPose.class, Side.CLIENT);
+            register(mchorse.blockbuster.network.common.PacketRecordMarker.class, mchorse.blockbuster.network.server.ServerHandlerRecordMarker.class, Side.SERVER);
         }
     };
 

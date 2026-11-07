@@ -207,5 +207,8 @@ public class ActionRegistry
         register("mwf_aim", MWFAimAction.class);
         register("mm_state", MMStateAction.class);
         register("vehicle_hydraulic", VehicleHydraulicAction.class);
+        /* Nur hinten anhaengen, sonst verschieben sich die Nummern gespeicherter Aufnahmen. */
+        register("mwrp_pose", MwrpPoseAction.class);
+        register("marker", MarkerAction.class);
     }
 }

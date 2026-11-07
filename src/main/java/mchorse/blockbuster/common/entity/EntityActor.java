@@ -137,6 +137,15 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     /** Nur Client: das Spielermodell, mit dem der Actor gezeichnet wird (ActorPuppet). */
     public Object appearancePuppet;
 
+    /** MWRP-Pose aus der Aufnahme (MwrpPoseAction), leer = keine. */
+    public String mwrpPose = "";
+
+    /** Nur Client: die Pose, die zuletzt an MWRP ging (MwrpPoseBridge). */
+    public String appliedPose = "";
+
+    /** GtwNpc-Skin aus dem Replay (ResourceLocation), leer = keiner. */
+    public String npcSkin = "";
+
     /**
      * Whether the control of playback should be manual 
      */
@@ -239,6 +248,18 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
     {
         this.appearance = appearance != null && appearance.isValid() ? appearance : null;
         this.appearanceHideOuter = hideOuter;
+    }
+
+    /** Auf dem Client auch beim Verlassen der Sichtweite: MWRPs Eintrag fuer diesen Actor loeschen. */
+    @Override
+    public void setDead()
+    {
+        super.setDead();
+
+        if (this.world.isRemote)
+        {
+            mchorse.blockbuster.client.render.MwrpPoseBridge.clear(this);
+        }
     }
 
     /**
@@ -457,6 +478,7 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
                 {
                     /* Idle-Schleife: wieder von vorn, statt stehen zu bleiben. */
                     this.playback.tick = 0;
+                    new mchorse.blockbuster.recording.actions.MwrpPoseAction("").apply(this);
                 }
                 else if (this.holdsLastFrame())
                 {
@@ -857,6 +879,8 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         this.dynamxSeat = tag.hasKey("DynamXSeat") ? tag.getInteger("DynamXSeat") : -1;
         this.appearance = tag.hasKey("Appearance", 10) ? mchorse.blockbuster.recording.appearance.ActorAppearance.fromNBT(tag.getCompoundTag("Appearance")) : null;
         this.appearanceHideOuter = tag.getBoolean("AppearanceHideOuter");
+        this.mwrpPose = tag.getString("MwrpPose");
+        this.npcSkin = tag.getString("NpcSkin");
 
         if (!this.world.isRemote)
         {
@@ -894,6 +918,17 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
         if (this.appearance != null)
         {
             tag.setTag("Appearance", this.appearance.toNBT());
+            tag.setBoolean("AppearanceHideOuter", this.appearanceHideOuter);
+        }
+
+        if (!this.mwrpPose.isEmpty())
+        {
+            tag.setString("MwrpPose", this.mwrpPose);
+        }
+
+        if (!this.npcSkin.isEmpty())
+        {
+            tag.setString("NpcSkin", this.npcSkin);
             tag.setBoolean("AppearanceHideOuter", this.appearanceHideOuter);
         }
     }
@@ -946,6 +981,11 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
             buffer.writeBoolean(this.appearanceHideOuter);
             mchorse.blockbuster.recording.appearance.ActorAppearance.writeGestures(buffer, this.appearance.gestures);
         }
+
+        /* Wieder ganz hinten: wer spaeter dazukommt, sieht die aktuelle Pose. */
+        ByteBufUtils.writeUTF8String(buffer, this.mwrpPose);
+        ByteBufUtils.writeUTF8String(buffer, this.npcSkin);
+        buffer.writeBoolean(this.appearanceHideOuter);
     }
 
     @Override
@@ -1015,6 +1055,13 @@ public class EntityActor extends EntityCreature implements IEntityAdditionalSpaw
             {
                 this.appearance.gestures = gestures;
             }
+        }
+
+        if (buffer.isReadable())
+        {
+            this.mwrpPose = ByteBufUtils.readUTF8String(buffer);
+            this.npcSkin = ByteBufUtils.readUTF8String(buffer);
+            this.appearanceHideOuter = buffer.readBoolean();
         }
     }
 

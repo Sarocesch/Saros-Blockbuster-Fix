@@ -73,6 +73,12 @@ public class Replay
      * spielt bei der Gruppenaufnahme einfach mit.
      */
     public String recordPlayer = "";
+
+    /**
+     * Skin aus GtwNpc (ResourceLocation, z.B. gtwnpcmod:skin/npc_1/skin_5.png).
+     * Gesetzt heisst: Actor als Spielermodell mit diesem Skin. Leer = wie bisher.
+     */
+    public String npcSkin = "";
     public int foodLevel = 20;
     public int totalExperience = 0;
 
@@ -126,6 +132,7 @@ public class Replay
         if (!actor.world.isRemote)
         {
             actor.setAppearance(this.recorderSkin ? this.recordedAppearance() : null, this.hideOuterLayer);
+            actor.npcSkin = this.npcSkin;
         }
 
         actor.notifyPlayers();
@@ -210,6 +217,7 @@ public class Replay
         tag.setBoolean("HideOuterLayer", this.hideOuterLayer);
         if (this.recorderSkin) tag.setBoolean("RecorderSkin", true);
         if (!this.recordPlayer.isEmpty()) tag.setString("RecordPlayer", this.recordPlayer);
+        if (!this.npcSkin.isEmpty()) tag.setString("NpcSkin", this.npcSkin);
         if (this.health != 20) tag.setFloat("Health", this.health);
         if (this.foodLevel != 20) tag.setInteger("FoodLevel", this.foodLevel);
         if (this.totalExperience != 0) tag.setInteger("TotalExperience", this.totalExperience);
@@ -238,6 +246,7 @@ public class Replay
         if (tag.hasKey("HideOuterLayer")) this.hideOuterLayer = tag.getBoolean("HideOuterLayer");
         this.recorderSkin = tag.getBoolean("RecorderSkin");
         this.recordPlayer = tag.getString("RecordPlayer");
+        this.npcSkin = tag.getString("NpcSkin");
         if (tag.hasKey("Health")) this.health = tag.getFloat("Health");
         if (tag.hasKey("RenderLast")) this.renderLast = tag.getBoolean("RenderLast");
         if (tag.hasKey("PlaybackXPFoodLevel")) this.playBackXPFood = tag.getBoolean("PlaybackXPFoodLevel");
@@ -269,6 +278,7 @@ public class Replay
         buf.writeBoolean(this.playBackXPFood);
         buf.writeBoolean(this.recorderSkin);
         ByteBufUtils.writeUTF8String(buf, this.recordPlayer);
+        ByteBufUtils.writeUTF8String(buf, this.npcSkin);
     }
 
     public void fromBuf(ByteBuf buf)
@@ -295,6 +305,7 @@ public class Replay
         this.playBackXPFood = buf.readBoolean();
         this.recorderSkin = buf.readBoolean();
         this.recordPlayer = ByteBufUtils.readUTF8String(buf);
+        this.npcSkin = ByteBufUtils.readUTF8String(buf);
     }
 
     @Override
@@ -336,6 +347,7 @@ public class Replay
         replay.hideOuterLayer = this.hideOuterLayer;
         replay.recorderSkin = this.recorderSkin;
         replay.recordPlayer = this.recordPlayer;
+        replay.npcSkin = this.npcSkin;
         replay.idleRecord = this.idleRecord;
         replay.renderLast = this.renderLast;
         replay.health = this.health;

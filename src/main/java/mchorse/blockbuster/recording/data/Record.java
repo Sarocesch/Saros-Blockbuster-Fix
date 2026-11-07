@@ -750,6 +750,9 @@ public class Record
             actor.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, ItemStack.EMPTY);
             actor.setItemStackToSlot(EntityEquipmentSlot.OFFHAND, ItemStack.EMPTY);
         }
+
+        /* Beim Neustart (Loop) ohne Pose beginnen, Tick 0 setzt sie wieder. */
+        new mchorse.blockbuster.recording.actions.MwrpPoseAction("").apply(actor);
     }
 
     /**

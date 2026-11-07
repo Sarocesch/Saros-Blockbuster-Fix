@@ -60,6 +60,9 @@ public class RecordRecorder
      */
     public int lastVehicleControls = -1;
 
+    /** Zaehler der Marker-Taste, je Aufnahme ab 1. */
+    private int markers;
+
     /**
      * First frame (to restore the position)
      */
@@ -75,6 +78,11 @@ public class RecordRecorder
      * swing progress and elytra flying updates
      */
     public PlayerTracker tracker;
+
+    public int nextMarker()
+    {
+        return ++this.markers;
+    }
 
     public RecordRecorder(Record record, Mode mode, EntityPlayer player, boolean teleportBack)
     {
