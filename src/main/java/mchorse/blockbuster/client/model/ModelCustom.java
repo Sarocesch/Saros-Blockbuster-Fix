@@ -492,19 +492,21 @@ public class ModelCustom extends ModelBiped
             return;
         }
 
-        ModelCustomRenderer[] limbs = new ModelCustomRenderer[6];
-        ModelRenderer[] bones = {this.bipedHead, this.bipedBody, this.bipedLeftArm, this.bipedRightArm, this.bipedLeftLeg, this.bipedRightLeg};
+        ModelCustomRenderer[] limbs = this.boneLimbs();
+        ModelRenderer[] bones = this.poseBones;
+
+        bones[0] = this.bipedHead;
+        bones[1] = this.bipedBody;
+        bones[2] = this.bipedLeftArm;
+        bones[3] = this.bipedRightArm;
+        bones[4] = this.bipedLeftLeg;
+        bones[5] = this.bipedRightLeg;
 
         /* Mehrere Limbs koennen denselben Knochen beanspruchen: beim
          * Standardmodell traegt bodywear die Rolle chest, ist aber ein Kind von
          * body. Die Koerperdrehung gehoert an body, nicht an die Kleiderschicht
          * - also gewinnt immer das wurzelnaechste Limb. (this.limbs kommt aus
          * einer HashMap, die Reihenfolge allein waere nicht einmal stabil.) */
-        for (int i = 0; i < limbs.length; i++)
-        {
-            limbs[i] = this.limbForBone(i);
-        }
-
         for (int i = 0; i < bones.length; i++)
         {
             if (limbs[i] == null) continue;
@@ -574,6 +576,86 @@ public class ModelCustom extends ModelBiped
      * Wurzelnaechstes Limb fuer einen Biped-Knochen, oder null.
      */
     public ModelCustomRenderer limbForBone(int bone)
+    {
+        if (bone < 0 || bone >= 6)
+        {
+            return this.findLimbForBone(bone);
+        }
+
+        return this.boneLimbs()[bone];
+    }
+
+    /* Die Zuordnung Limb -> Knochen haengt nur am Modell (Limb-Array, Slot, Name,
+     * Eltern), nicht an der Pose, lief aber bei jedem Zeichnen mehrfach ueber alle
+     * Limbs. Deshalb gemerkt und nur neu bestimmt, wenn sich einer dieser Eingaenge
+     * geaendert hat (der Modell-Editor aendert den Slot ohne Neuaufbau). */
+    private final ModelCustomRenderer[] cachedBoneLimbs = new ModelCustomRenderer[6];
+    private final ModelRenderer[] poseBones = new ModelRenderer[6];
+    private ModelCustomRenderer[] cachedBoneLimbsFor;
+    private Object[] cachedBoneLimbsKeys;
+
+    private ModelCustomRenderer[] boneLimbs()
+    {
+        ModelCustomRenderer[] all = this.limbs;
+
+        if (all == this.cachedBoneLimbsFor && this.boneLimbKeysMatch(all))
+        {
+            return this.cachedBoneLimbs;
+        }
+
+        Object[] keys = null;
+
+        if (all != null)
+        {
+            keys = new Object[all.length * 3];
+
+            for (int i = 0; i < all.length; i++)
+            {
+                keys[i * 3] = all[i].limb.slot;
+                keys[i * 3 + 1] = all[i].limb.name;
+                keys[i * 3 + 2] = all[i].parent;
+            }
+        }
+
+        for (int i = 0; i < this.cachedBoneLimbs.length; i++)
+        {
+            this.cachedBoneLimbs[i] = this.findLimbForBone(i);
+        }
+
+        this.cachedBoneLimbsKeys = keys;
+        this.cachedBoneLimbsFor = all;
+
+        return this.cachedBoneLimbs;
+    }
+
+    private boolean boneLimbKeysMatch(ModelCustomRenderer[] all)
+    {
+        Object[] keys = this.cachedBoneLimbsKeys;
+
+        if (all == null || keys == null)
+        {
+            return all == null && keys == null;
+        }
+
+        if (keys.length != all.length * 3)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < all.length; i++)
+        {
+            ModelCustomRenderer limb = all[i];
+
+            if (keys[i * 3] != limb.limb.slot || keys[i * 3 + 1] != limb.limb.name || keys[i * 3 + 2] != limb.parent)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private ModelCustomRenderer findLimbForBone(int bone)
     {
         ModelCustomRenderer result = null;
 

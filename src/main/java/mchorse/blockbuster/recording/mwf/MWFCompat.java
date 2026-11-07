@@ -316,6 +316,7 @@ public final class MWFCompat
     private static Method methodWriteCode;
     private static Method methodReadCode;
     private static Method methodMovementAngles;
+    private static java.lang.invoke.MethodHandle handleMovementAngles;
 
     @SuppressWarnings("unchecked")
     private static boolean initMovement()
@@ -350,6 +351,20 @@ public final class MWFCompat
                     net.minecraft.client.model.ModelBiped.class,
                     float.class, float.class, float.class, float.class, float.class, float.class,
                     net.minecraft.entity.Entity.class);
+
+            /* Primitiv aufrufbar statt Method.invoke: kein Object[] und keine
+             * sechs Float-Boxen je Zeichnen. Geht das nicht, bleibt Method.invoke. */
+            try
+            {
+                handleMovementAngles = java.lang.invoke.MethodHandles.publicLookup().unreflect(methodMovementAngles)
+                        .asType(java.lang.invoke.MethodType.methodType(void.class, net.minecraft.client.model.ModelBiped.class,
+                                float.class, float.class, float.class, float.class, float.class, float.class,
+                                net.minecraft.entity.Entity.class));
+            }
+            catch (Throwable t)
+            {
+                handleMovementAngles = null;
+            }
 
             /* Die Ganzmodell-Verformung (Lehnen, Sitzen, Kriechen) steckt
              * nicht in setRotationAngles, sondern in applyRotations. */
@@ -439,7 +454,16 @@ public final class MWFCompat
 
         try
         {
-            methodMovementAngles.invoke(null, model, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale, entity);
+            java.lang.invoke.MethodHandle handle = handleMovementAngles;
+
+            if (handle != null)
+            {
+                handle.invokeExact(model, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale, entity);
+            }
+            else
+            {
+                methodMovementAngles.invoke(null, model, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale, entity);
+            }
         }
         catch (Throwable ignored) {}
     }
